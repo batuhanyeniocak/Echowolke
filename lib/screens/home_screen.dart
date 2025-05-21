@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/track.dart';
 import '../widgets/track_tile.dart';
+import '../models/tracks_data.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -10,36 +11,15 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // ornek veri
-  final List<Track> _trendingTracks = [
-    Track(
-      id: '1',
-      title: 'TITLE 1',
-      artist: 'ARTIST 1',
-      coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://example.com/audio1.mp3',
-      duration: 240,
-      playCount: 12500,
-    ),
-    Track(
-      id: '2',
-      title: 'TITLE 2',
-      artist: 'ARTIST 2',
-      coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://example.com/audio2.mp3',
-      duration: 198,
-      playCount: 8700,
-    ),
-    Track(
-      id: '3',
-      title: 'TITLE 3',
-      artist: 'ARTIST 3',
-      coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://example.com/audio3.mp3',
-      duration: 320,
-      playCount: 15800,
-    ),
-  ];
+  late List<Track> _trendingTracks;
+  late List<Track> _newReleaseTracks;
+
+  @override
+  void initState() {
+    super.initState();
+    _trendingTracks = TracksData.trendingTracks;
+    _newReleaseTracks = TracksData.newReleaseTracks;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +58,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+          ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _newReleaseTracks.length,
+            itemBuilder: (context, index) {
+              return TrackTile(track: _newReleaseTracks[index]);
+            },
           ),
         ],
       ),
