@@ -1,3 +1,4 @@
+// lib/models/track.dart
 class Track {
   final String id;
   final String title;
@@ -6,7 +7,8 @@ class Track {
   final String audioUrl;
   final int duration;
   final int playCount;
-  final bool isLiked;
+  bool isPlaying;
+  bool isLiked;
 
   Track({
     required this.id,
@@ -15,7 +17,8 @@ class Track {
     required this.coverUrl,
     required this.audioUrl,
     required this.duration,
-    this.playCount = 0,
+    required this.playCount,
+    this.isPlaying = false,
     this.isLiked = false,
   });
 }

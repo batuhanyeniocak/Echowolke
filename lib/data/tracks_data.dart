@@ -4,10 +4,11 @@ class TracksData {
   static final List<Track> trendingTracks = [
     Track(
       id: '1',
-      title: 'TITLE 1',
-      artist: 'ARTIST 1',
-      coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://example.com/audio1.mp3',
+      title: 'jtxpo & nettspend i love drugss',
+      artist: 'moodboard',
+      coverUrl:
+          'https://i1.sndcdn.com/artworks-cE5egMSxjHSXSz85-UzDyIw-t1080x1080.jpg',
+      audioUrl: 'https://audio.jukehost.co.uk/pMNMbO8gR5g381vqGao6gP3ZAhUyTbye',
       duration: 240,
       playCount: 12500,
     ),

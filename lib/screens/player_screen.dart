@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/track.dart';
+import '../services/audio_player_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   final Track track;

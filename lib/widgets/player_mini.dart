@@ -62,9 +62,7 @@ class PlayerMini extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: Icon(
-                isPlaying ? Icons.pause : Icons.play_arrow,
-              ),
+              icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
               onPressed: onPlayPause,
             ),
           ],
