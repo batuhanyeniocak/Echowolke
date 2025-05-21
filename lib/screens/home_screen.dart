@@ -10,7 +10,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Örnek veri
+  // ornek veri
   final List<Track> _trendingTracks = [
     Track(
       id: '1',
@@ -79,7 +79,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          // Yeni çıkanlar kısmı da eklenecek
         ],
       ),
     );
