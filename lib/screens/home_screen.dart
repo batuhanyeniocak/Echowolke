@@ -14,8 +14,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Track> _trendingTracks = [
     Track(
       id: '1',
-      title: 'Boş Sokak',
-      artist: 'Cem Karaca',
+      title: 'TITLE 1',
+      artist: 'ARTIST 1',
       coverUrl: 'https://via.placeholder.com/300',
       audioUrl: 'https://example.com/audio1.mp3',
       duration: 240,
@@ -23,8 +23,8 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     Track(
       id: '2',
-      title: 'Sen Ağlama',
-      artist: 'Sezen Aksu',
+      title: 'TITLE 2',
+      artist: 'ARTIST 2',
       coverUrl: 'https://via.placeholder.com/300',
       audioUrl: 'https://example.com/audio2.mp3',
       duration: 198,
@@ -32,8 +32,8 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     Track(
       id: '3',
-      title: 'Gülpembe',
-      artist: 'Barış Manço',
+      title: 'TITLE 3',
+      artist: 'ARTIST 3',
       coverUrl: 'https://via.placeholder.com/300',
       audioUrl: 'https://example.com/audio3.mp3',
       duration: 320,
