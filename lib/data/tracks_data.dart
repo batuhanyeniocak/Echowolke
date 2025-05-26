@@ -9,7 +9,7 @@ class TracksData {
       coverUrl:
           'https://i1.sndcdn.com/artworks-cE5egMSxjHSXSz85-UzDyIw-t1080x1080.jpg',
       audioUrl: 'https://audio.jukehost.co.uk/pMNMbO8gR5g381vqGao6gP3ZAhUyTbye',
-      duration: 240,
+      duration: 116,
       playCount: 12500,
     ),
     Track(
@@ -18,7 +18,7 @@ class TracksData {
       artist: 'Evanora Unlimited',
       coverUrl: 'https://via.placeholder.com/300',
       audioUrl: 'https://audio.jukehost.co.uk/0zrCsYeI8s4ID7uYFAvCi5gw0mHgAhSW',
-      duration: 198,
+      duration: 126,
       playCount: 8700,
     ),
     Track(
