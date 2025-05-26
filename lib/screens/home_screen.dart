@@ -3,7 +3,7 @@ import '../models/track.dart';
 import '../widgets/track_tile.dart';
 import '../data/tracks_data.dart';
 import '../services/audio_player_service.dart';
-import '../screens/player_screen.dart'; // PlayerScreen'i import edin
+import '../screens/player_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);

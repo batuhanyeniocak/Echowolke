@@ -11,7 +11,6 @@ class AudioService {
   final StreamController<bool> _playStateController =
       StreamController<bool>.broadcast();
 
-  // Singleton pattern
   static final AudioService _instance = AudioService._internal();
 
   factory AudioService() {
@@ -20,29 +19,23 @@ class AudioService {
 
   AudioService._internal();
 
-  // Getters
   Stream<double> get positionStream => _positionController.stream;
   Stream<Track?> get currentTrackStream => _currentTrackController.stream;
   Stream<bool> get playStateStream => _playStateController.stream;
   Track? get currentTrack => _currentTrack;
   bool get isPlaying => _isPlaying;
 
-  // Metodlar
   Future<void> play(Track track) async {
     _currentTrack = track;
     _isPlaying = true;
     _currentTrackController.add(track);
     _playStateController.add(true);
 
-    // Simüle edilmiş oynatma ilerlemesi
     Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isPlaying) {
         timer.cancel();
         return;
       }
-
-      // Simüle edilmiş pozisyon güncellemesi
-      // Gerçek uygulamada burada ses çalar kütüphanesi kullanılacak
     });
   }
 

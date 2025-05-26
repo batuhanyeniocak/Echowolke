@@ -168,5 +168,3 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 }
-
-//butonlar simdilik aktif degil..

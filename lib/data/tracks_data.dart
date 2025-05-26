@@ -14,10 +14,10 @@ class TracksData {
     ),
     Track(
       id: '2',
-      title: 'TITLE 2',
-      artist: 'ARTIST 2',
+      title: 'Dibiyu',
+      artist: 'Evanora Unlimited',
       coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://example.com/audio2.mp3',
+      audioUrl: 'https://audio.jukehost.co.uk/0zrCsYeI8s4ID7uYFAvCi5gw0mHgAhSW',
       duration: 198,
       playCount: 8700,
     ),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../models/track.dart';
 import '../services/audio_player_service.dart';
-import '../screens/player_screen.dart'; // PlayerScreen'i import edin
+import '../screens/player_screen.dart';
 
 class TrackTile extends StatefulWidget {
   final Track track;
@@ -12,70 +13,342 @@ class TrackTile extends StatefulWidget {
   State<TrackTile> createState() => _TrackTileState();
 }
 
-class _TrackTileState extends State<TrackTile> {
+class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
   final AudioPlayerService _audioPlayerService = AudioPlayerService();
   bool isPlaying = false;
+  bool isCurrentTrack = false;
+  late StreamSubscription _playerStateSubscription;
+  late AnimationController _playingAnimationController;
+  late Animation<double> _playingAnimation;
 
   @override
   void initState() {
     super.initState();
-    // Şarkı çalma durumunu dinleme
-    _audioPlayerService.audioPlayer.playerStateStream.listen((playerState) {
-      final isCurrentTrackPlaying =
-          _audioPlayerService.currentTrack?.id == widget.track.id &&
-              playerState.playing;
+    _initializeAnimations();
+    _initializeListeners();
+    _updateCurrentState();
+  }
 
-      if (mounted && isPlaying != isCurrentTrackPlaying) {
-        setState(() {
-          isPlaying = isCurrentTrackPlaying;
-        });
+  void _initializeAnimations() {
+    _playingAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _playingAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _playingAnimationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  void _initializeListeners() {
+    _playerStateSubscription =
+        _audioPlayerService.audioPlayer.playerStateStream.listen((playerState) {
+      if (mounted) {
+        _updatePlayingState();
       }
     });
+
+    _audioPlayerService.audioPlayer.positionStream.listen((position) {
+      if (mounted && isCurrentTrack) {}
+    });
+  }
+
+  void _updateCurrentState() {
+    if (mounted) {
+      final currentTrack = _audioPlayerService.currentTrack;
+      final newIsCurrentTrack = currentTrack?.id == widget.track.id;
+      final newIsPlaying = newIsCurrentTrack && _audioPlayerService.isPlaying;
+
+      setState(() {
+        isCurrentTrack = newIsCurrentTrack;
+        isPlaying = newIsPlaying;
+      });
+
+      if (isPlaying) {
+        _playingAnimationController.repeat(reverse: true);
+      } else {
+        _playingAnimationController.stop();
+        _playingAnimationController.reset();
+      }
+    }
+  }
+
+  void _updatePlayingState() {
+    final currentTrack = _audioPlayerService.currentTrack;
+    final newIsCurrentTrack = currentTrack?.id == widget.track.id;
+    final newIsPlaying = newIsCurrentTrack && _audioPlayerService.isPlaying;
+
+    if (isCurrentTrack != newIsCurrentTrack || isPlaying != newIsPlaying) {
+      setState(() {
+        isCurrentTrack = newIsCurrentTrack;
+        isPlaying = newIsPlaying;
+      });
+
+      if (isPlaying) {
+        _playingAnimationController.repeat(reverse: true);
+      } else {
+        _playingAnimationController.stop();
+        _playingAnimationController.reset();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _playerStateSubscription.cancel();
+    _playingAnimationController.dispose();
+    super.dispose();
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  String _formatPlayCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M';
+    } else if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K';
+    }
+    return count.toString();
+  }
+
+  Future<void> _handlePlayPause() async {
+    try {
+      await _audioPlayerService.playTrack(widget.track);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Hata: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildPlayingIndicator() {
+    if (!isPlaying) return const SizedBox.shrink();
+
+    return Positioned(
+      bottom: 2,
+      right: 2,
+      child: AnimatedBuilder(
+        animation: _playingAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _playingAnimation.value,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).primaryColor.withOpacity(0.3),
+                    blurRadius: 4,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.volume_up,
+                color: Colors.white,
+                size: 10,
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(4.0),
-        child: Image.network(
-          widget.track.coverUrl,
-          width: 50,
-          height: 50,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              width: 50,
-              height: 50,
-              color: Colors.grey,
-              child: const Icon(Icons.music_note, color: Colors.white),
-            );
-          },
-        ),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: isCurrentTrack
+            ? Theme.of(context).primaryColor.withOpacity(0.08)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        border: isCurrentTrack
+            ? Border.all(
+                color: Theme.of(context).primaryColor.withOpacity(0.3),
+                width: 1,
+              )
+            : null,
       ),
-      title: Text(widget.track.title),
-      subtitle: Text(widget.track.artist),
-      trailing: IconButton(
-        icon: Icon(
-          isPlaying ? Icons.pause : Icons.play_arrow,
-          color: isPlaying ? Theme.of(context).primaryColor : null,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8.0),
+                  boxShadow: isCurrentTrack
+                      ? [
+                          BoxShadow(
+                            color:
+                                Theme.of(context).primaryColor.withOpacity(0.2),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Image.network(
+                  widget.track.coverUrl,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: 56,
+                      height: 56,
+                      color: Colors.grey[300],
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: const Icon(
+                        Icons.music_note,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            _buildPlayingIndicator(),
+          ],
         ),
-        onPressed: () {
-          _audioPlayerService.playTrack(widget.track);
+        title: Text(
+          widget.track.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: isCurrentTrack ? FontWeight.w600 : FontWeight.w500,
+            color: isCurrentTrack ? Theme.of(context).primaryColor : null,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.track.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isCurrentTrack
+                    ? Theme.of(context).primaryColor.withOpacity(0.8)
+                    : Colors.grey[600],
+                fontWeight:
+                    isCurrentTrack ? FontWeight.w500 : FontWeight.normal,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(
+                  Icons.access_time,
+                  size: 12,
+                  color: Colors.grey[500],
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _formatDuration(widget.track.duration),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.play_circle_outline,
+                  size: 12,
+                  color: Colors.grey[500],
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _formatPlayCount(widget.track.playCount),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        trailing: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isCurrentTrack
+                ? Theme.of(context).primaryColor.withOpacity(0.1)
+                : null,
+          ),
+          child: IconButton(
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                isPlaying ? Icons.pause : Icons.play_arrow,
+                key: ValueKey(isPlaying),
+                color: isCurrentTrack
+                    ? Theme.of(context).primaryColor
+                    : Colors.grey[600],
+                size: 28,
+              ),
+            ),
+            onPressed: _handlePlayPause,
+          ),
+        ),
+        onTap: () async {
+          if (!isCurrentTrack) {
+            await _handlePlayPause();
+          }
+
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PlayerScreen(track: widget.track),
+              ),
+            );
+          }
         },
       ),
-      onTap: () {
-        _audioPlayerService.playTrack(widget.track);
-      },
-      onLongPress: () {
-        // Uzun basınca PlayerScreen'e yönlendir
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PlayerScreen(track: widget.track),
-          ),
-        );
-      },
     );
   }
 }

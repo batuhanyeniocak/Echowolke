@@ -41,5 +41,3 @@ class LibraryScreen extends StatelessWidget {
     );
   }
 }
-
-// butonlar simdilik aktif degil :(
