@@ -1,4 +1,6 @@
+// lib/screens/player_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_app/data/tracks_data.dart';
 import 'dart:async';
 import 'package:just_audio/just_audio.dart';
 import '../models/track.dart';
@@ -22,9 +24,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _isCurrentTrack = false;
   bool _isDragging = false;
 
+  // Aktif track değişkeni
+  late Track _activeTrack;
+
   late StreamSubscription _playerStateSubscription;
   late StreamSubscription _positionSubscription;
   late StreamSubscription _durationSubscription;
+  late StreamSubscription _trackChangeSubscription;
 
   late AnimationController _rotationController;
   late AnimationController _scaleController;
@@ -33,6 +39,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    _activeTrack = widget.track; // Başlangıçta widget track ile başla
     _initializeAnimations();
     _initializePlayer();
     _setupListeners();
@@ -59,9 +66,34 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _initializePlayer() async {
+    // Hangi listede olduğunu belirle
+    List<Track> sourcePlaylist = [];
+
+    // Önce trending listesinde kontrol et
+    if (TracksData.trendingTracks.any((track) => track.id == widget.track.id)) {
+      sourcePlaylist = List.from(TracksData.trendingTracks);
+    }
+    // Trending'de yoksa new release listesinde kontrol et
+    else if (TracksData.newReleaseTracks
+        .any((track) => track.id == widget.track.id)) {
+      sourcePlaylist = List.from(TracksData.newReleaseTracks);
+    }
+    // Her iki listede de yoksa, tek şarkı olarak çal
+    else {
+      sourcePlaylist = [widget.track];
+    }
+
+    // Seçilen listedeki şarkının indeksini bul
+    int startIndex =
+        sourcePlaylist.indexWhere((track) => track.id == widget.track.id);
+
+    // AudioPlayerService'e şarkı listesini ve indeksi ayarla
+    _audioPlayerService.setPlaylist(sourcePlaylist, startIndex);
+
     if (_audioPlayerService.currentTrack?.id != widget.track.id) {
       await _audioPlayerService.playTrack(widget.track);
     }
+
     _updateCurrentState();
   }
 
@@ -70,6 +102,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         _audioPlayerService.audioPlayer.playerStateStream.listen((playerState) {
       if (mounted) {
         _updatePlayingState();
+
+        // Şarkı bittiğinde sonraki şarkıya geç
+        if (playerState.processingState == ProcessingState.completed) {
+          _audioPlayerService.playNextTrack();
+        }
       }
     });
 
@@ -90,27 +127,37 @@ class _PlayerScreenState extends State<PlayerScreen>
         });
       }
     });
+
+    // Track değişimlerini dinle
+    _trackChangeSubscription =
+        _audioPlayerService.currentTrackStream.listen((track) {
+      if (mounted) {
+        setState(() {
+          _activeTrack = track;
+          _totalDuration = Duration(seconds: track.duration);
+        });
+      }
+    });
   }
 
   void _updateCurrentState() {
     if (mounted) {
       final currentTrack = _audioPlayerService.currentTrack;
-      final newIsCurrentTrack = currentTrack?.id == widget.track.id;
-      final newIsPlaying = newIsCurrentTrack && _audioPlayerService.isPlaying;
-
-      setState(() {
-        _isCurrentTrack = newIsCurrentTrack;
-        _isPlaying = newIsPlaying;
-        _totalDuration = Duration(seconds: widget.track.duration);
-      });
-
+      if (currentTrack != null) {
+        setState(() {
+          _activeTrack = currentTrack;
+          _isCurrentTrack = true;
+          _isPlaying = _audioPlayerService.isPlaying;
+          _totalDuration = Duration(seconds: currentTrack.duration);
+        });
+      }
       _updateAnimations();
     }
   }
 
   void _updatePlayingState() {
     final currentTrack = _audioPlayerService.currentTrack;
-    final newIsCurrentTrack = currentTrack?.id == widget.track.id;
+    final newIsCurrentTrack = currentTrack?.id == _activeTrack.id;
     final newIsPlaying = newIsCurrentTrack && _audioPlayerService.isPlaying;
 
     if (mounted &&
@@ -139,6 +186,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _playerStateSubscription.cancel();
     _positionSubscription.cancel();
     _durationSubscription.cancel();
+    _trackChangeSubscription.cancel();
     _rotationController.dispose();
     _scaleController.dispose();
     super.dispose();
@@ -152,7 +200,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _handlePlayPause() async {
     try {
-      await _audioPlayerService.playTrack(widget.track);
+      await _audioPlayerService.playTrack(_activeTrack);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -219,7 +267,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           child: Stack(
                             children: [
                               Image.network(
-                                widget.track.coverUrl,
+                                _activeTrack.coverUrl,
                                 width: actualSize,
                                 height: actualSize,
                                 fit: BoxFit.cover,
@@ -339,7 +387,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         Column(
                           children: [
                             Text(
-                              widget.track.title,
+                              _activeTrack.title,
                               style: TextStyle(
                                 fontSize: height * 0.09,
                                 fontWeight: FontWeight.bold,
@@ -350,7 +398,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                             ),
                             SizedBox(height: height * 0.015),
                             Text(
-                              widget.track.artist,
+                              _activeTrack.artist,
                               style: TextStyle(
                                 fontSize: height * 0.07,
                                 color: Colors.grey[600],
@@ -428,7 +476,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                               icon: const Icon(Icons.skip_previous),
                               iconSize: buttonSize * 0.5,
                               color: Colors.grey[700],
-                              onPressed: () {},
+                              onPressed: () async {
+                                await _audioPlayerService.playPreviousTrack();
+                              },
                             ),
                             GestureDetector(
                               onTapDown: (_) => _scaleController.forward(),
@@ -470,7 +520,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                               icon: const Icon(Icons.skip_next),
                               iconSize: buttonSize * 0.5,
                               color: Colors.grey[700],
-                              onPressed: () {},
+                              onPressed: () async {
+                                await _audioPlayerService.playNextTrack();
+                              },
                             ),
                           ],
                         ),

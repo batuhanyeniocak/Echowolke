@@ -23,11 +23,11 @@ class TracksData {
     ),
     Track(
       id: '3',
-      title: 'TITLE 3',
-      artist: 'ARTIST 3',
+      title: 'Her Roses Were Guns',
+      artist: 'Oxygeno',
       coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://example.com/audio3.mp3',
-      duration: 320,
+      audioUrl: 'https://audio.jukehost.co.uk/gAWInHAZuqrCTae3JIvAtMCdF4R8MY4h',
+      duration: 298,
       playCount: 15800,
     ),
   ];
