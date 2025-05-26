@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "252747795061",
+    "project_id": "echowolke",
+    "storage_bucket": "echowolke.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:252747795061:android:91f2da85e0fc01d334863c",
+        "android_client_info": {
+          "package_name": "com.example.flutter_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGO2Rw4Wa_XWmB2nBPAgv1gYezrm5BWcA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
