@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_app/data/tracks_data.dart';
 import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/library_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load();
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  try {
+    await TracksData.loadTracks();
+  } catch (e) {
+    print("TracksData yüklenirken hata: $e");
+  }
+
   runApp(const MyApp());
 }
 

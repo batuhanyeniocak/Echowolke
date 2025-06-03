@@ -1,4 +1,3 @@
-// lib/screens/player_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_app/data/tracks_data.dart';
 import 'dart:async';
@@ -24,7 +23,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _isCurrentTrack = false;
   bool _isDragging = false;
 
-  // Aktif track değişkeni
   late Track _activeTrack;
 
   late StreamSubscription _playerStateSubscription;
@@ -39,7 +37,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void initState() {
     super.initState();
-    _activeTrack = widget.track; // Başlangıçta widget track ile başla
+    _activeTrack = widget.track;
     _initializeAnimations();
     _initializePlayer();
     _setupListeners();
@@ -66,28 +64,20 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _initializePlayer() async {
-    // Hangi listede olduğunu belirle
     List<Track> sourcePlaylist = [];
 
-    // Önce trending listesinde kontrol et
     if (TracksData.trendingTracks.any((track) => track.id == widget.track.id)) {
       sourcePlaylist = List.from(TracksData.trendingTracks);
-    }
-    // Trending'de yoksa new release listesinde kontrol et
-    else if (TracksData.newReleaseTracks
+    } else if (TracksData.newReleaseTracks
         .any((track) => track.id == widget.track.id)) {
       sourcePlaylist = List.from(TracksData.newReleaseTracks);
-    }
-    // Her iki listede de yoksa, tek şarkı olarak çal
-    else {
+    } else {
       sourcePlaylist = [widget.track];
     }
 
-    // Seçilen listedeki şarkının indeksini bul
     int startIndex =
         sourcePlaylist.indexWhere((track) => track.id == widget.track.id);
 
-    // AudioPlayerService'e şarkı listesini ve indeksi ayarla
     _audioPlayerService.setPlaylist(sourcePlaylist, startIndex);
 
     if (_audioPlayerService.currentTrack?.id != widget.track.id) {
@@ -103,7 +93,6 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (mounted) {
         _updatePlayingState();
 
-        // Şarkı bittiğinde sonraki şarkıya geç
         if (playerState.processingState == ProcessingState.completed) {
           _audioPlayerService.playNextTrack();
         }
@@ -128,7 +117,6 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     });
 
-    // Track değişimlerini dinle
     _trackChangeSubscription =
         _audioPlayerService.currentTrackStream.listen((track) {
       if (mounted) {

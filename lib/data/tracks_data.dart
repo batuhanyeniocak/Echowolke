@@ -1,55 +1,21 @@
 import '../models/track.dart';
+import '../services/firebase_service.dart';
 
 class TracksData {
-  static final List<Track> trendingTracks = [
-    Track(
-      id: '1',
-      title: 'jtxpo & nettspend i love drugss',
-      artist: 'moodboard',
-      coverUrl:
-          'https://i1.sndcdn.com/artworks-cE5egMSxjHSXSz85-UzDyIw-t1080x1080.jpg',
-      audioUrl: 'https://audio.jukehost.co.uk/pMNMbO8gR5g381vqGao6gP3ZAhUyTbye',
-      duration: 116,
-      playCount: 12500,
-    ),
-    Track(
-      id: '2',
-      title: 'Dibiyu',
-      artist: 'Evanora Unlimited',
-      coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://audio.jukehost.co.uk/0zrCsYeI8s4ID7uYFAvCi5gw0mHgAhSW',
-      duration: 126,
-      playCount: 8700,
-    ),
-    Track(
-      id: '3',
-      title: 'Her Roses Were Guns',
-      artist: 'Oxygeno',
-      coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://audio.jukehost.co.uk/gAWInHAZuqrCTae3JIvAtMCdF4R8MY4h',
-      duration: 298,
-      playCount: 15800,
-    ),
-  ];
+  static final FirebaseService _firebaseService = FirebaseService();
+  static List<Track> trendingTracks = [];
+  static List<Track> newReleaseTracks = [];
 
-  static final List<Track> newReleaseTracks = [
-    Track(
-      id: '4',
-      title: 'NEW TRACK 1',
-      artist: 'ARTIST 1',
-      coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://example.com/audio4.mp3',
-      duration: 210,
-      playCount: 5200,
-    ),
-    Track(
-      id: '5',
-      title: 'NEW TRACK 2',
-      artist: 'ARTIST 2',
-      coverUrl: 'https://via.placeholder.com/300',
-      audioUrl: 'https://example.com/audio5.mp3',
-      duration: 183,
-      playCount: 2800,
-    ),
-  ];
+  static Future<void> loadTracks() async {
+    trendingTracks = await _firebaseService.getTrendingTracks();
+    newReleaseTracks = await _firebaseService.getNewReleaseTracks();
+  }
+
+  static Future<void> refreshTrendingTracks() async {
+    trendingTracks = await _firebaseService.getTrendingTracks();
+  }
+
+  static Future<void> refreshNewReleaseTracks() async {
+    newReleaseTracks = await _firebaseService.getNewReleaseTracks();
+  }
 }

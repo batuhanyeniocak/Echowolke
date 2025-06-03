@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "252747795061",
+    "firebase_url": "https://echowolke-default-rtdb.europe-west1.firebasedatabase.app",
     "project_id": "echowolke",
     "storage_bucket": "echowolke.firebasestorage.app"
   },
