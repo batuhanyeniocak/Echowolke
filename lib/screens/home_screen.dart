@@ -15,6 +15,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final AudioPlayerService _audioPlayerService = AudioPlayerService();
 
+  String _formatDuration(int seconds) {
+    if (seconds.isNaN || seconds < 0) return '00:00';
+    Duration duration = Duration(seconds: seconds);
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    return "$twoDigitMinutes:$twoDigitSeconds";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -35,8 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           final tracks = snapshot.data!.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
-
-            return Track(
+            final track = Track(
               id: data['id'] ?? '',
               title: data['title'] ?? '',
               artist: data['artist'] ?? '',
@@ -44,7 +52,12 @@ class _HomeScreenState extends State<HomeScreen> {
               coverUrl: data['coverUrl'] ?? '',
               duration: data['duration'] ?? 0,
               playCount: data['playCount'] ?? 0,
+              releaseDate: data['releaseDate'] != null
+                  ? (data['releaseDate'] as Timestamp).toDate()
+                  : DateTime.now(),
             );
+            print('Track: ${track.title}, Cover URL: ${track.coverUrl}');
+            return track;
           }).toList();
 
           return ListView(
@@ -61,7 +74,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: tracks.length,
                 itemBuilder: (context, index) {
-                  return TrackTile(track: tracks[index]);
+                  final track = tracks[index];
+                  return TrackTile(
+                    track: track,
+                    formattedDuration: _formatDuration(track.duration),
+                  );
                 },
               ),
             ],

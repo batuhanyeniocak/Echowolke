@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Track {
   final String id;
   final String title;
@@ -6,6 +8,7 @@ class Track {
   final String audioUrl;
   final int duration;
   final int playCount;
+  final DateTime releaseDate;
   bool isPlaying;
   bool isLiked;
 
@@ -17,6 +20,7 @@ class Track {
     required this.audioUrl,
     required this.duration,
     required this.playCount,
+    required this.releaseDate,
     this.isPlaying = false,
     this.isLiked = false,
   });
@@ -30,6 +34,9 @@ class Track {
       audioUrl: data['audioUrl'] ?? '',
       duration: data['duration'] ?? 0,
       playCount: data['playCount'] ?? 0,
+      releaseDate: data['releaseDate'] != null
+          ? (data['releaseDate'] as Timestamp).toDate()
+          : DateTime.now(),
     );
   }
 
@@ -42,6 +49,7 @@ class Track {
       'audioUrl': audioUrl,
       'duration': duration,
       'playCount': playCount,
+      'releaseDate': Timestamp.fromDate(releaseDate),
     };
   }
 }

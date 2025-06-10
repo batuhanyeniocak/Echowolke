@@ -3,11 +3,17 @@ import 'dart:async';
 import '../models/track.dart';
 import '../services/audio_player_service.dart';
 import '../screens/player_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class TrackTile extends StatefulWidget {
   final Track track;
+  final String formattedDuration;
 
-  const TrackTile({Key? key, required this.track}) : super(key: key);
+  const TrackTile({
+    Key? key,
+    required this.track,
+    this.formattedDuration = '00:00',
+  }) : super(key: key);
 
   @override
   State<TrackTile> createState() => _TrackTileState();
@@ -101,12 +107,6 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
     _playerStateSubscription.cancel();
     _playingAnimationController.dispose();
     super.dispose();
-  }
-
-  String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final remainingSeconds = seconds % 60;
-    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   String _formatPlayCount(int count) {
@@ -209,29 +209,26 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
                         ]
                       : null,
                 ),
-                child: Image.network(
-                  widget.track.coverUrl,
+                child: CachedNetworkImage(
+                  imageUrl: widget.track.coverUrl,
                   width: 56,
                   height: 56,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      width: 56,
-                      height: 56,
-                      color: Colors.grey[300],
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                          strokeWidth: 2,
-                        ),
+                  fit: BoxFit.contain,
+                  placeholder: (context, url) => Container(
+                    width: 56,
+                    height: 56,
+                    color: Colors.grey[300],
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
                       ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
+                    ),
+                  ),
+                  errorWidget: (context, url, error) {
+                    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+                    print('CachedNetworkImage loading error for URL: $url');
+                    print('Error: $error');
+                    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
                     return Container(
                       width: 56,
                       height: 56,
@@ -287,7 +284,7 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  _formatDuration(widget.track.duration),
+                  widget.formattedDuration,
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[500],

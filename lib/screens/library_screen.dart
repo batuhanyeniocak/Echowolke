@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'add_song_screen.dart'; // Yeni ekleme ekranı dosyasını import et
+import 'add_song_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({Key? key}) : super(key: key);
@@ -38,13 +38,13 @@ class LibraryScreen extends StatelessWidget {
             onTap: () {},
           ),
           ListTile(
-            leading: const Icon(Icons.library_music),
+            leading: const Icon(Icons.library_add),
             title: const Text('Şarkı Ekle'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const AddSongScreen()),
+                MaterialPageRoute(builder: (_) => const AddSongScreen()),
               );
             },
           ),
