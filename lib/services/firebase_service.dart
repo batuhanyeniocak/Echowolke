@@ -124,15 +124,12 @@ class FirebaseService {
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  Future<List<Track>> getAllTracks() async {
-    try {
-      final snapshot = await _firestore.collection('tracks').get();
+  Stream<List<Track>> getAllTracks() {
+    return _firestore.collection('tracks').snapshots().map((snapshot) {
       return snapshot.docs
           .map((doc) => Track.fromFirestore(doc.data()))
           .toList();
-    } catch (e) {
-      return [];
-    }
+    });
   }
 
   Future<List<Track>> getTrendingTracks() async {

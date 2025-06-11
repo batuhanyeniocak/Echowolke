@@ -22,6 +22,7 @@ class _SearchScreenState extends State<SearchScreen> {
   FirebaseService? _firebaseService;
   AudioPlayerService? _audioPlayerService;
 
+  StreamSubscription<List<Track>>? _tracksSubscription;
   Timer? _debounce;
 
   @override
@@ -31,10 +32,25 @@ class _SearchScreenState extends State<SearchScreen> {
       _firebaseService = Provider.of<FirebaseService>(context, listen: false);
       _audioPlayerService =
           Provider.of<AudioPlayerService>(context, listen: false);
-      _fetchAllTracks();
+      _setupTracksListener();
     });
 
     _searchController.addListener(_onSearchChanged);
+  }
+
+  void _setupTracksListener() {
+    _tracksSubscription = _firebaseService!.getAllTracks().listen((tracks) {
+      setState(() {
+        _allTracks = tracks;
+        _isLoading = false;
+      });
+      _performSearch(_searchController.text);
+    }, onError: (error) {
+      print('Error fetching all tracks stream: $error');
+      setState(() {
+        _isLoading = false;
+      });
+    });
   }
 
   void _onSearchChanged() {
@@ -42,22 +58,6 @@ class _SearchScreenState extends State<SearchScreen> {
     _debounce = Timer(const Duration(milliseconds: 500), () {
       _performSearch(_searchController.text);
     });
-  }
-
-  Future<void> _fetchAllTracks() async {
-    setState(() {
-      _isLoading = true;
-    });
-    try {
-      _allTracks = await _firebaseService!.getAllTracks();
-      _performSearch(_searchController.text);
-    } catch (e) {
-      print('Error fetching all tracks: $e');
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
   void _performSearch(String query) {
@@ -162,6 +162,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _tracksSubscription?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
