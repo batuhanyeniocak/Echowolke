@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/track.dart';
 import '../widgets/track_tile.dart';
-import '../services/audio_player_service.dart';
+import '../services/audio_player_service.dart'; // Önceki AudioService yerine bu kullanılacak
 import '../screens/player_screen.dart';
+import '../widgets/player_mini.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -30,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Ana Sayfa'),
         elevation: 0,
+        actions: const [],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('tracks').snapshots(),
@@ -44,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           final tracks = snapshot.data!.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            final track = Track(
+            return Track(
               id: data['id'] ?? '',
               title: data['title'] ?? '',
               artist: data['artist'] ?? '',
@@ -56,9 +59,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? (data['releaseDate'] as Timestamp).toDate()
                   : DateTime.now(),
             );
-            print('Track: ${track.title}, Cover URL: ${track.coverUrl}');
-            return track;
           }).toList();
+
+          // Firestore'dan şarkılar yüklendikten sonra oynatma listesini set ediyoruz.
+          // Bu, listenin bir kere set edilmesini sağlar ve her rebuild'de tekrarlamaz.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_audioPlayerService.currentPlaylist.isEmpty &&
+                tracks.isNotEmpty) {
+              _audioPlayerService.setPlaylist(tracks, 0);
+            }
+          });
 
           return ListView(
             children: [
@@ -85,74 +95,32 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
-      bottomNavigationBar: _buildNowPlayingBar(),
-    );
-  }
+      // bottomNavigationBar'ı StreamBuilder ile sarmalayarak currentTrackStream'i dinliyoruz
+      bottomNavigationBar: StreamBuilder<Track?>(
+        stream: _audioPlayerService.currentTrackStream,
+        builder: (context, snapshot) {
+          final currentTrack = snapshot.data;
 
-  Widget _buildNowPlayingBar() {
-    return StreamBuilder<bool>(
-      stream: _audioPlayerService.audioPlayer.playingStream,
-      builder: (context, snapshot) {
-        final isPlaying = snapshot.data ?? false;
-        final currentTrack = _audioPlayerService.currentTrack;
+          if (currentTrack == null) {
+            return const SizedBox.shrink();
+          }
 
-        if (currentTrack == null) return const SizedBox.shrink();
+          // isPlaying getter'ı anlık değeri döner, bu yüzden StreamBuilder'a gerek yok.
+          final isPlaying = _audioPlayerService.isPlaying;
 
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => PlayerScreen(track: currentTrack),
-              ),
-            );
-          },
-          child: Container(
-            height: 70,
-            color: Theme.of(context).primaryColor.withOpacity(0.1),
-            child: ListTile(
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(4.0),
-                child: Image.network(
-                  currentTrack.coverUrl,
-                  width: 50,
-                  height: 50,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 50,
-                      height: 50,
-                      color: Colors.grey,
-                      child: const Icon(Icons.music_note, color: Colors.white),
-                    );
-                  },
-                ),
-              ),
-              title: Text(currentTrack.title,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(currentTrack.artist),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
-                      size: 32,
-                    ),
-                    onPressed: () {
-                      if (isPlaying) {
-                        _audioPlayerService.pauseTrack();
-                      } else {
-                        _audioPlayerService.playTrack(currentTrack);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+          return PlayerMini(
+            track: currentTrack,
+            isPlaying: isPlaying,
+            onPlayPause: () {
+              if (_audioPlayerService.isPlaying) {
+                _audioPlayerService.pauseTrack();
+              } else {
+                _audioPlayerService.playTrack(currentTrack);
+              }
+            },
+          );
+        },
+      ),
     );
   }
 }

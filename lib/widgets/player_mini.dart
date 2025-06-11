@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart'; // CachedNetworkImage'i import ediyoruz
 import '../models/track.dart';
 import '../screens/player_screen.dart';
 
@@ -27,18 +28,30 @@ class PlayerMini extends StatelessWidget {
       },
       child: Container(
         height: 60,
-        color: Colors.grey[200],
+        color: Theme.of(context).primaryColor.withOpacity(0.1),
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                image: DecorationImage(
-                  image: NetworkImage(track.coverUrl),
-                  fit: BoxFit.cover,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: CachedNetworkImage(
+                imageUrl: track.coverUrl,
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  width: 40,
+                  height: 40,
+                  color: Colors.grey[300],
+                  child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  width: 40,
+                  height: 40,
+                  color: Colors.grey[400],
+                  child: const Icon(Icons.music_note,
+                      color: Colors.white, size: 20),
                 ),
               ),
             ),
@@ -62,7 +75,10 @@ class PlayerMini extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+              icon: Icon(
+                isPlaying ? Icons.pause : Icons.play_arrow,
+                color: Theme.of(context).primaryColor,
+              ),
               onPressed: onPlayPause,
             ),
           ],

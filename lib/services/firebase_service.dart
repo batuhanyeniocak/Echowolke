@@ -10,8 +10,7 @@ class FirebaseService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // auth instance'ına dışarıdan erişim sağlamak için genel bir getter
-  FirebaseAuth get auth => _auth; // YENİ EKLENDİ
+  FirebaseAuth get auth => _auth;
 
   Future<UserCredential?> registerWithEmailAndPassword(
       String email, String password) async {

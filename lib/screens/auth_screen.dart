@@ -32,14 +32,12 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       if (_isLogin) {
-        // Giriş yap
         await _firebaseService.signInWithEmailAndPassword(
           _emailController.text.trim(),
           _passwordController.text.trim(),
         );
         message = 'Giriş başarılı!';
       } else {
-        // Kayıt ol
         await _firebaseService.registerWithEmailAndPassword(
           _emailController.text.trim(),
           _passwordController.text.trim(),
