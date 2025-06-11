@@ -20,16 +20,13 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey:
-        'AIzaSyALs3IlDu6CMIEm-nWAjecdH9H9tmGmxNU', // Kopyaladığınızı yapıştırın
-    appId:
-        '1:252747795061:web:d3be1063964bf74134863c', // Kopyaladığınızı yapıştırın
-    messagingSenderId: '252747795061', // Kopyaladığınızı yapıştırın
-    projectId: 'echowolke', // Kontrol edin, genelde aynı kalır
-    storageBucket:
-        'echowolke.firebasestorage.app', // Kontrol edin, genelde aynı kalır
-    authDomain: 'echowolke.firebaseapp.com', // Kopyaladığınızı yapıştırın
-    measurementId: 'G-50H18X7SK8', // Kopyaladığınızı yapıştırın
+    apiKey: 'AIzaSyALs3IlDu6CMIEm-nWAjecdH9H9tmGmxNU',
+    appId: '1:252747795061:web:d3be1063964bf74134863c',
+    messagingSenderId: '252747795061',
+    projectId: 'echowolke',
+    storageBucket: 'echowolke.firebasestorage.app',
+    authDomain: 'echowolke.firebaseapp.com',
+    measurementId: 'G-50H18X7SK8',
   );
 
   static const FirebaseOptions android = FirebaseOptions(

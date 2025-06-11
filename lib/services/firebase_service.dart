@@ -2,11 +2,69 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import '../models/track.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_app/models/track.dart';
 
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // auth instance'ına dışarıdan erişim sağlamak için genel bir getter
+  FirebaseAuth get auth => _auth; // YENİ EKLENDİ
+
+  Future<UserCredential?> registerWithEmailAndPassword(
+      String email, String password) async {
+    try {
+      UserCredential userCredential =
+          await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+        'email': email,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      print('Kayıt başarılı: ${userCredential.user!.email}');
+      return userCredential;
+    } on FirebaseAuthException catch (e) {
+      print('Kayıt hatası: ${e.code} - ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Genel kayıt hatası: $e');
+      rethrow;
+    }
+  }
+
+  Future<UserCredential?> signInWithEmailAndPassword(
+      String email, String password) async {
+    try {
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      print('Giriş başarılı: ${userCredential.user!.email}');
+      return userCredential;
+    } on FirebaseAuthException catch (e) {
+      print('Giriş hatası: ${e.code} - ${e.message}');
+      rethrow;
+    } catch (e) {
+      print('Genel giriş hatası: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await _auth.signOut();
+      print('Çıkış başarılı.');
+    } catch (e) {
+      print('Çıkış hatası: $e');
+      rethrow;
+    }
+  }
+
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   Future<List<Track>> getAllTracks() async {
     try {
@@ -184,7 +242,7 @@ class FirebaseService {
       await _firestore.collection('tracks').doc(trackId).delete();
     } catch (e) {
       print('Şarkı silme hatası: $e');
-      throw e;
+      rethrow;
     }
   }
 
