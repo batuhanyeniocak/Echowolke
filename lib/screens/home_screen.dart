@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/track.dart';
 import '../widgets/track_tile.dart';
-import '../services/audio_player_service.dart'; // Önceki AudioService yerine bu kullanılacak
+import '../services/audio_player_service.dart';
 import '../screens/player_screen.dart';
-import '../widgets/player_mini.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -35,7 +34,10 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: const [],
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('tracks').snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('tracks')
+            .orderBy('releaseDate', descending: true)
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -61,8 +63,6 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }).toList();
 
-          // Firestore'dan şarkılar yüklendikten sonra oynatma listesini set ediyoruz.
-          // Bu, listenin bir kere set edilmesini sağlar ve her rebuild'de tekrarlamaz.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_audioPlayerService.currentPlaylist.isEmpty &&
                 tracks.isNotEmpty) {
@@ -88,36 +88,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   return TrackTile(
                     track: track,
                     formattedDuration: _formatDuration(track.duration),
+                    onTap: () {
+                      _audioPlayerService.setPlaylist(tracks, index);
+                      _audioPlayerService.playTrack(track);
+                    },
                   );
                 },
               ),
             ],
-          );
-        },
-      ),
-      // bottomNavigationBar'ı StreamBuilder ile sarmalayarak currentTrackStream'i dinliyoruz
-      bottomNavigationBar: StreamBuilder<Track?>(
-        stream: _audioPlayerService.currentTrackStream,
-        builder: (context, snapshot) {
-          final currentTrack = snapshot.data;
-
-          if (currentTrack == null) {
-            return const SizedBox.shrink();
-          }
-
-          // isPlaying getter'ı anlık değeri döner, bu yüzden StreamBuilder'a gerek yok.
-          final isPlaying = _audioPlayerService.isPlaying;
-
-          return PlayerMini(
-            track: currentTrack,
-            isPlaying: isPlaying,
-            onPlayPause: () {
-              if (_audioPlayerService.isPlaying) {
-                _audioPlayerService.pauseTrack();
-              } else {
-                _audioPlayerService.playTrack(currentTrack);
-              }
-            },
           );
         },
       ),

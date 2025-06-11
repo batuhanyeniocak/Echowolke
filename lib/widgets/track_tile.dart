@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/track.dart';
 import '../services/audio_player_service.dart';
 import '../screens/player_screen.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class TrackTile extends StatefulWidget {
   final Track track;
   final String formattedDuration;
+  final VoidCallback? onTap;
 
   const TrackTile({
     Key? key,
     required this.track,
     this.formattedDuration = '00:00',
+    this.onTap,
   }) : super(key: key);
 
   @override
@@ -60,6 +62,16 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
     _audioPlayerService.audioPlayer.positionStream.listen((position) {
       if (mounted && isCurrentTrack) {}
     });
+
+    _audioPlayerService.audioPlayer.durationStream.listen((duration) {
+      if (mounted && duration != null) {}
+    });
+
+    _audioPlayerService.currentTrackStream.listen((track) {
+      if (mounted) {
+        _updatePlayingState();
+      }
+    });
   }
 
   void _updateCurrentState() {
@@ -73,12 +85,7 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
         isPlaying = newIsPlaying;
       });
 
-      if (isPlaying) {
-        _playingAnimationController.repeat(reverse: true);
-      } else {
-        _playingAnimationController.stop();
-        _playingAnimationController.reset();
-      }
+      _updateAnimations();
     }
   }
 
@@ -93,12 +100,16 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
         isPlaying = newIsPlaying;
       });
 
-      if (isPlaying) {
-        _playingAnimationController.repeat(reverse: true);
-      } else {
-        _playingAnimationController.stop();
-        _playingAnimationController.reset();
-      }
+      _updateAnimations();
+    }
+  }
+
+  void _updateAnimations() {
+    if (isPlaying) {
+      _playingAnimationController.repeat(reverse: true);
+    } else {
+      _playingAnimationController.stop();
+      _playingAnimationController.reset();
     }
   }
 
@@ -225,10 +236,6 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
                     ),
                   ),
                   errorWidget: (context, url, error) {
-                    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-                    print('CachedNetworkImage loading error for URL: $url');
-                    print('Error: $error');
-                    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
                     return Container(
                       width: 56,
                       height: 56,
@@ -331,20 +338,7 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
             onPressed: _handlePlayPause,
           ),
         ),
-        onTap: () async {
-          if (!isCurrentTrack) {
-            await _handlePlayPause();
-          }
-
-          if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => PlayerScreen(track: widget.track),
-              ),
-            );
-          }
-        },
+        onTap: widget.onTap,
       ),
     );
   }

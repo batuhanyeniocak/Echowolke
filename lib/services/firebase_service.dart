@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_app/models/track.dart';
+import '../models/track.dart';
 
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -11,6 +11,63 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   FirebaseAuth get auth => _auth;
+
+  Future<void> addLikedSong(String userId, Track track) async {
+    try {
+      Map<String, dynamic> dataToSave = track.toFirestore();
+      dataToSave['likedAt'] = FieldValue.serverTimestamp();
+
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('likedSongs')
+          .doc(track.id)
+          .set(dataToSave);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> removeLikedSong(String userId, String trackId) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('likedSongs')
+          .doc(trackId)
+          .delete();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<bool> isSongLiked(String userId, String trackId) async {
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('likedSongs')
+          .doc(trackId)
+          .get();
+      return doc.exists;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Stream<List<Track>> getLikedSongs(String userId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('likedSongs')
+        .orderBy('likedAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Track.fromFirestore(doc.data()))
+          .toList();
+    });
+  }
 
   Future<UserCredential?> registerWithEmailAndPassword(
       String email, String password) async {
@@ -24,13 +81,10 @@ class FirebaseService {
         'email': email,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      print('Kayıt başarılı: ${userCredential.user!.email}');
       return userCredential;
     } on FirebaseAuthException catch (e) {
-      print('Kayıt hatası: ${e.code} - ${e.message}');
       rethrow;
     } catch (e) {
-      print('Genel kayıt hatası: $e');
       rethrow;
     }
   }
@@ -42,13 +96,10 @@ class FirebaseService {
         email: email,
         password: password,
       );
-      print('Giriş başarılı: ${userCredential.user!.email}');
       return userCredential;
     } on FirebaseAuthException catch (e) {
-      print('Giriş hatası: ${e.code} - ${e.message}');
       rethrow;
     } catch (e) {
-      print('Genel giriş hatası: $e');
       rethrow;
     }
   }
@@ -56,9 +107,7 @@ class FirebaseService {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
-      print('Çıkış başarılı.');
     } catch (e) {
-      print('Çıkış hatası: $e');
       rethrow;
     }
   }
@@ -72,7 +121,6 @@ class FirebaseService {
           .map((doc) => Track.fromFirestore(doc.data()))
           .toList();
     } catch (e) {
-      print('Şarkıları getirme hatası: $e');
       return [];
     }
   }
@@ -88,7 +136,6 @@ class FirebaseService {
           .map((doc) => Track.fromFirestore(doc.data()))
           .toList();
     } catch (e) {
-      print('Trending şarkıları getirme hatası: $e');
       return [];
     }
   }
@@ -104,7 +151,6 @@ class FirebaseService {
           .map((doc) => Track.fromFirestore(doc.data()))
           .toList();
     } catch (e) {
-      print('Yeni şarkıları getirme hatası: $e');
       return [];
     }
   }
@@ -117,29 +163,18 @@ class FirebaseService {
       }
       return null;
     } catch (e) {
-      print('Şarkı detayı getirme hatası: $e');
       return null;
     }
   }
 
   Future<String> uploadMp3File(File mp3File, String fileName) async {
     try {
-      print('MP3 yükleniyor (Mobil): $fileName');
       final ref = _storage.ref().child('audio/$fileName');
       final uploadTask = ref.putFile(mp3File);
-
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        double progress = snapshot.bytesTransferred / snapshot.totalBytes;
-        print('Upload progress: ${(progress * 100).toStringAsFixed(2)}%');
-      });
-
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
-      print('MP3 yüklendi. URL: $downloadUrl');
-
       return downloadUrl;
     } catch (e) {
-      print('MP3 yükleme hatası: $e');
       throw Exception('MP3 yükleme hatası: $e');
     }
   }
@@ -147,50 +182,26 @@ class FirebaseService {
   Future<String> uploadMp3FileFromBytes(
       Uint8List bytes, String fileName) async {
     try {
-      print('MP3 yükleniyor (Web): $fileName, Boyut: ${bytes.length} bytes');
       final ref = _storage.ref().child('audio/$fileName');
-
-      final metadata = SettableMetadata(
-        contentType: 'audio/mpeg',
-        customMetadata: {'uploaded': DateTime.now().toString()},
-      );
-
+      final metadata = SettableMetadata(contentType: 'audio/mpeg');
       final uploadTask = ref.putData(bytes, metadata);
-
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        double progress = snapshot.bytesTransferred / snapshot.totalBytes;
-        print('Upload progress: ${(progress * 100).toStringAsFixed(2)}%');
-      });
-
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
-      print('MP3 yüklendi. URL: $downloadUrl');
-
       return downloadUrl;
     } catch (e) {
-      print('MP3 yükleme hatası (Web): $e');
       throw Exception('MP3 yükleme hatası: $e');
     }
   }
 
   Future<String> uploadCoverImage(File imageFile, String fileName) async {
     try {
-      print('Kapak resmi yükleniyor (Mobil): $fileName');
       final ref = _storage.ref().child('covers/$fileName');
-
-      final metadata = SettableMetadata(
-        contentType: 'image/jpeg',
-      );
-
+      final metadata = SettableMetadata(contentType: 'image/jpeg');
       final uploadTask = ref.putFile(imageFile, metadata);
-
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
-      print('Kapak resmi yüklendi. URL: $downloadUrl');
-
       return downloadUrl;
     } catch (e) {
-      print('Kapak resmi yükleme hatası: $e');
       throw Exception('Kapak resmi yükleme hatası: $e');
     }
   }
@@ -198,40 +209,24 @@ class FirebaseService {
   Future<String> uploadCoverImageFromBytes(
       Uint8List bytes, String fileName) async {
     try {
-      print(
-          'Kapak resmi yükleniyor (Web): $fileName, Boyut: ${bytes.length} bytes');
       final ref = _storage.ref().child('covers/$fileName');
-
-      final metadata = SettableMetadata(
-        contentType: 'image/jpeg',
-        customMetadata: {'uploaded': DateTime.now().toString()},
-      );
-
+      final metadata = SettableMetadata(contentType: 'image/jpeg');
       final uploadTask = ref.putData(bytes, metadata);
-
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
-      print('Kapak resmi yüklendi. URL: $downloadUrl');
-
       return downloadUrl;
     } catch (e) {
-      print('Kapak resmi yükleme hatası (Web): $e');
       throw Exception('Kapak resmi yükleme hatası: $e');
     }
   }
 
   Future<void> saveTrackToFirestore(Track track) async {
     try {
-      print('Track Firestore\'a kaydediliyor: ${track.id}');
-
-      final trackData = track.toFirestore();
-      print('Track data: $trackData');
-
-      await _firestore.collection('tracks').doc(track.id).set(trackData);
-
-      print('Track başarıyla kaydedildi');
+      await _firestore
+          .collection('tracks')
+          .doc(track.id)
+          .set(track.toFirestore());
     } catch (e) {
-      print('Firestore kaydetme hatası: $e');
       throw Exception('Firestore kaydetme hatası: $e');
     }
   }
@@ -240,7 +235,6 @@ class FirebaseService {
     try {
       await _firestore.collection('tracks').doc(trackId).delete();
     } catch (e) {
-      print('Şarkı silme hatası: $e');
       rethrow;
     }
   }
@@ -248,7 +242,6 @@ class FirebaseService {
   Stream<double> uploadMp3FileWithProgress(File mp3File, String fileName) {
     final ref = _storage.ref().child('audio/$fileName');
     final uploadTask = ref.putFile(mp3File);
-
     return uploadTask.snapshotEvents.map((snapshot) {
       return snapshot.bytesTransferred / snapshot.totalBytes;
     });

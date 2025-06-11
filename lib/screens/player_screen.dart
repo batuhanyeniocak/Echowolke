@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_app/data/tracks_data.dart';
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/track.dart';
 import '../services/audio_player_service.dart';
+import '../services/firebase_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   final Track track;
@@ -17,18 +19,26 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen>
     with TickerProviderStateMixin {
   final AudioPlayerService _audioPlayerService = AudioPlayerService();
+  final FirebaseService _firebaseService = FirebaseService();
+
   bool _isPlaying = false;
   Duration _currentPosition = Duration.zero;
   Duration _totalDuration = Duration.zero;
-  bool _isCurrentTrack = false;
   bool _isDragging = false;
+  bool _isLiked = false;
+  bool _isShuffleEnabled = false;
+  LoopMode _loopMode = LoopMode.off;
 
   late Track _activeTrack;
+  String? _currentUserId;
 
-  late StreamSubscription _playerStateSubscription;
   late StreamSubscription _positionSubscription;
   late StreamSubscription _durationSubscription;
   late StreamSubscription _trackChangeSubscription;
+  late StreamSubscription _playerStateSubscription;
+  late StreamSubscription _authSubscription;
+  late StreamSubscription _loopModeSubscription;
+  late StreamSubscription _shuffleModeSubscription;
 
   late AnimationController _rotationController;
   late AnimationController _scaleController;
@@ -38,9 +48,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   void initState() {
     super.initState();
     _activeTrack = widget.track;
+    _currentUserId = FirebaseAuth.instance.currentUser?.uid;
     _initializeAnimations();
-    _initializePlayer();
+    _initializePlayerState();
     _setupListeners();
+    _checkLikedStatus();
+    _initializePlaybackSettings();
   }
 
   void _initializeAnimations() {
@@ -63,28 +76,82 @@ class _PlayerScreenState extends State<PlayerScreen>
     ));
   }
 
-  void _initializePlayer() async {
-    List<Track> sourcePlaylist = [];
-
-    if (TracksData.trendingTracks.any((track) => track.id == widget.track.id)) {
-      sourcePlaylist = List.from(TracksData.trendingTracks);
-    } else if (TracksData.newReleaseTracks
-        .any((track) => track.id == widget.track.id)) {
-      sourcePlaylist = List.from(TracksData.newReleaseTracks);
-    } else {
-      sourcePlaylist = [widget.track];
-    }
-
-    int startIndex =
-        sourcePlaylist.indexWhere((track) => track.id == widget.track.id);
-
-    _audioPlayerService.setPlaylist(sourcePlaylist, startIndex);
-
+  void _initializePlayerState() async {
     if (_audioPlayerService.currentTrack?.id != widget.track.id) {
       await _audioPlayerService.playTrack(widget.track);
     }
 
-    _updateCurrentState();
+    setState(() {
+      _activeTrack = _audioPlayerService.currentTrack ?? widget.track;
+      _isPlaying = _audioPlayerService.isPlaying;
+      _currentPosition = _audioPlayerService.audioPlayer.position;
+      _totalDuration =
+          _audioPlayerService.audioPlayer.duration ?? Duration.zero;
+    });
+
+    _updateAnimations();
+  }
+
+  void _initializePlaybackSettings() {
+    _loopMode = _audioPlayerService.audioPlayer.loopMode;
+    _isShuffleEnabled = _audioPlayerService.audioPlayer.shuffleModeEnabled;
+  }
+
+  Future<void> _checkLikedStatus() async {
+    if (_currentUserId != null) {
+      final bool liked =
+          await _firebaseService.isSongLiked(_currentUserId!, _activeTrack.id);
+      if (mounted) {
+        setState(() {
+          _isLiked = liked;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleLikeStatus() async {
+    if (_currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Şarkı beğenmek için giriş yapmalısınız.'),
+            backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    try {
+      if (_isLiked) {
+        await _firebaseService.removeLikedSong(
+            _currentUserId!, _activeTrack.id);
+        if (mounted) {
+          setState(() {
+            _isLiked = false;
+          });
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text('${_activeTrack.title} beğenilenlerden kaldırıldı.')),
+        );
+      } else {
+        await _firebaseService.addLikedSong(_currentUserId!, _activeTrack);
+        if (mounted) {
+          setState(() {
+            _isLiked = true;
+          });
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('${_activeTrack.title} beğenilenlere eklendi.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Beğenme durumu güncellenirken hata oluştu: $e'),
+            backgroundColor: Colors.red),
+      );
+    }
   }
 
   void _setupListeners() {
@@ -92,10 +159,6 @@ class _PlayerScreenState extends State<PlayerScreen>
         _audioPlayerService.audioPlayer.playerStateStream.listen((playerState) {
       if (mounted) {
         _updatePlayingState();
-
-        if (playerState.processingState == ProcessingState.completed) {
-          _audioPlayerService.playNextTrack();
-        }
       }
     });
 
@@ -119,42 +182,60 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     _trackChangeSubscription =
         _audioPlayerService.currentTrackStream.listen((track) {
-      if (mounted) {
+      if (mounted && track != null) {
         setState(() {
           _activeTrack = track;
           _totalDuration = Duration(seconds: track.duration);
+          _currentPosition = Duration.zero;
+          _isPlaying = _audioPlayerService.isPlaying;
+        });
+        _updateAnimations();
+        _checkLikedStatus();
+      }
+    });
+
+    _authSubscription =
+        _firebaseService.auth.authStateChanges().listen((User? user) {
+      if (mounted) {
+        setState(() {
+          _currentUserId = user?.uid;
+        });
+        _checkLikedStatus();
+      }
+    });
+
+    _loopModeSubscription =
+        _audioPlayerService.audioPlayer.loopModeStream.listen((loopMode) {
+      if (mounted) {
+        setState(() {
+          _loopMode = loopMode;
+        });
+      }
+    });
+
+    _shuffleModeSubscription = _audioPlayerService
+        .audioPlayer.shuffleModeEnabledStream
+        .listen((shuffleEnabled) {
+      if (mounted) {
+        setState(() {
+          _isShuffleEnabled = shuffleEnabled;
         });
       }
     });
   }
 
-  void _updateCurrentState() {
-    if (mounted) {
-      final currentTrack = _audioPlayerService.currentTrack;
-      if (currentTrack != null) {
-        setState(() {
-          _activeTrack = currentTrack;
-          _isCurrentTrack = true;
-          _isPlaying = _audioPlayerService.isPlaying;
-          _totalDuration = Duration(seconds: currentTrack.duration);
-        });
-      }
-      _updateAnimations();
-    }
-  }
-
   void _updatePlayingState() {
     final currentTrack = _audioPlayerService.currentTrack;
-    final newIsCurrentTrack = currentTrack?.id == _activeTrack.id;
-    final newIsPlaying = newIsCurrentTrack && _audioPlayerService.isPlaying;
+    final newIsPlaying = _audioPlayerService.isPlaying;
 
     if (mounted &&
-        (_isCurrentTrack != newIsCurrentTrack || _isPlaying != newIsPlaying)) {
+        (_isPlaying != newIsPlaying || _activeTrack.id != currentTrack?.id)) {
       setState(() {
-        _isCurrentTrack = newIsCurrentTrack;
         _isPlaying = newIsPlaying;
+        if (currentTrack != null) {
+          _activeTrack = currentTrack;
+        }
       });
-
       _updateAnimations();
     }
   }
@@ -175,6 +256,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     _positionSubscription.cancel();
     _durationSubscription.cancel();
     _trackChangeSubscription.cancel();
+    _authSubscription.cancel();
+    _loopModeSubscription.cancel();
+    _shuffleModeSubscription.cancel();
     _rotationController.dispose();
     _scaleController.dispose();
     super.dispose();
@@ -206,6 +290,34 @@ class _PlayerScreenState extends State<PlayerScreen>
       await _audioPlayerService.audioPlayer.seek(position);
     } catch (e) {
       print('Seek hatası: $e');
+    }
+  }
+
+  Future<void> _toggleShuffle() async {
+    final newShuffleState = !_isShuffleEnabled;
+    await _audioPlayerService.audioPlayer
+        .setShuffleModeEnabled(newShuffleState);
+    if (mounted) {
+      setState(() {
+        _isShuffleEnabled = newShuffleState;
+      });
+    }
+  }
+
+  Future<void> _toggleRepeat() async {
+    LoopMode newMode;
+    if (_loopMode == LoopMode.off) {
+      newMode = LoopMode.all;
+    } else if (_loopMode == LoopMode.all) {
+      newMode = LoopMode.one;
+    } else {
+      newMode = LoopMode.off;
+    }
+    await _audioPlayerService.audioPlayer.setLoopMode(newMode);
+    if (mounted) {
+      setState(() {
+        _loopMode = newMode;
+      });
     }
   }
 
@@ -254,12 +366,24 @@ class _PlayerScreenState extends State<PlayerScreen>
                         child: ClipOval(
                           child: Stack(
                             children: [
-                              Image.network(
-                                _activeTrack.coverUrl,
+                              CachedNetworkImage(
+                                imageUrl: _activeTrack.coverUrl,
                                 width: actualSize,
                                 height: actualSize,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
+                                placeholder: (context, url) => Container(
+                                  width: actualSize,
+                                  height: actualSize,
+                                  color: Colors.grey[300],
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Theme.of(context).primaryColor),
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) {
                                   return Container(
                                     width: actualSize,
                                     height: actualSize,
@@ -370,166 +494,202 @@ class _PlayerScreenState extends State<PlayerScreen>
                         ),
                       ],
                     ),
-                    child: Column(
-                      children: [
-                        Column(
-                          children: [
-                            Text(
-                              _activeTrack.title,
-                              style: TextStyle(
-                                fontSize: height * 0.09,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: height * 0.015),
-                            Text(
-                              _activeTrack.artist,
-                              style: TextStyle(
-                                fontSize: height * 0.07,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: height * 0.05),
-                        Column(
-                          children: [
-                            SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                trackHeight: 4,
-                                thumbShape: RoundSliderThumbShape(
-                                  enabledThumbRadius: height * 0.025,
+                    child: SingleChildScrollView(
+                      // Changed: Column'u SingleChildScrollView ile sardık
+                      child: Column(
+                        children: [
+                          Column(
+                            children: [
+                              Text(
+                                _activeTrack.title,
+                                style: TextStyle(
+                                  fontSize: height * 0.09,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                overlayShape: RoundSliderOverlayShape(
-                                  overlayRadius: height * 0.06,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: height * 0.015),
+                              Text(
+                                _activeTrack.artist,
+                                style: TextStyle(
+                                  fontSize: height * 0.07,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: height * 0.05),
+                          Column(
+                            children: [
+                              SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  trackHeight: 4,
+                                  thumbShape: RoundSliderThumbShape(
+                                    enabledThumbRadius: height * 0.025,
+                                  ),
+                                  overlayShape: RoundSliderOverlayShape(
+                                    overlayRadius: height * 0.06,
+                                  ),
+                                ),
+                                child: Slider(
+                                  value: _currentPosition.inSeconds
+                                      .toDouble()
+                                      .clamp(0.0,
+                                          _totalDuration.inSeconds.toDouble()),
+                                  max: _totalDuration.inSeconds.toDouble(),
+                                  activeColor: Theme.of(context).primaryColor,
+                                  inactiveColor: Colors.grey[300],
+                                  onChangeStart: (value) => _isDragging = true,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _currentPosition =
+                                          Duration(seconds: value.toInt());
+                                    });
+                                  },
+                                  onChangeEnd: (value) {
+                                    _isDragging = false;
+                                    _seekTo(Duration(seconds: value.toInt()));
+                                  },
                                 ),
                               ),
-                              child: Slider(
-                                value: _currentPosition.inSeconds
-                                    .toDouble()
-                                    .clamp(0.0,
-                                        _totalDuration.inSeconds.toDouble()),
-                                max: _totalDuration.inSeconds.toDouble(),
-                                activeColor: Theme.of(context).primaryColor,
-                                inactiveColor: Colors.grey[300],
-                                onChangeStart: (value) => _isDragging = true,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _currentPosition =
-                                        Duration(seconds: value.toInt());
-                                  });
-                                },
-                                onChangeEnd: (value) {
-                                  _isDragging = false;
-                                  _seekTo(Duration(seconds: value.toInt()));
-                                },
-                              ),
-                            ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _formatDuration(_currentPosition),
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: height * 0.05,
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      _formatDuration(_currentPosition),
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: height * 0.05,
+                                      ),
                                     ),
-                                  ),
-                                  Text(
-                                    _formatDuration(_totalDuration),
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: height * 0.05,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: height * 0.05),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.skip_previous),
-                              iconSize: buttonSize * 0.5,
-                              color: Colors.grey[700],
-                              onPressed: () async {
-                                await _audioPlayerService.playPreviousTrack();
-                              },
-                            ),
-                            GestureDetector(
-                              onTapDown: (_) => _scaleController.forward(),
-                              onTapUp: (_) => _scaleController.reverse(),
-                              onTapCancel: () => _scaleController.reverse(),
-                              child: Container(
-                                width: buttonSize,
-                                height: buttonSize,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Theme.of(context).primaryColor,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Theme.of(context)
-                                          .primaryColor
-                                          .withOpacity(0.3),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 4),
+                                    Text(
+                                      _formatDuration(_totalDuration),
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: height * 0.05,
+                                      ),
                                     ),
                                   ],
                                 ),
-                                child: IconButton(
-                                  icon: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 200),
-                                    child: Icon(
-                                      _isPlaying
-                                          ? Icons.pause
-                                          : Icons.play_arrow,
-                                      key: ValueKey(_isPlaying),
-                                      color: Colors.white,
-                                      size: buttonSize * 0.5,
-                                    ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: height * 0.05),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.skip_previous),
+                                iconSize: buttonSize * 0.5,
+                                color: Colors.grey[700],
+                                onPressed: () async {
+                                  await _audioPlayerService.playPreviousTrack();
+                                },
+                              ),
+                              GestureDetector(
+                                onTapDown: (_) => _scaleController.forward(),
+                                onTapUp: (_) => _scaleController.reverse(),
+                                onTapCancel: () => _scaleController.reverse(),
+                                child: Container(
+                                  width: buttonSize,
+                                  height: buttonSize,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Theme.of(context).primaryColor,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Theme.of(context)
+                                            .primaryColor
+                                            .withOpacity(0.3),
+                                        blurRadius: 15,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
                                   ),
-                                  onPressed: _handlePlayPause,
+                                  child: IconButton(
+                                    icon: AnimatedSwitcher(
+                                      duration:
+                                          const Duration(milliseconds: 200),
+                                      child: Icon(
+                                        _isPlaying
+                                            ? Icons.pause
+                                            : Icons.play_arrow,
+                                        key: ValueKey(_isPlaying),
+                                        color: Colors.white,
+                                        size: buttonSize * 0.5,
+                                      ),
+                                    ),
+                                    onPressed: _handlePlayPause,
+                                  ),
                                 ),
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.skip_next),
-                              iconSize: buttonSize * 0.5,
-                              color: Colors.grey[700],
-                              onPressed: () async {
-                                await _audioPlayerService.playNextTrack();
-                              },
-                            ),
-                          ],
-                        ),
-                        const Spacer(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            Icon(Icons.shuffle,
-                                size: height * 0.07, color: Colors.grey),
-                            Icon(Icons.repeat,
-                                size: height * 0.07, color: Colors.grey),
-                            Icon(Icons.favorite_border,
-                                size: height * 0.07, color: Colors.grey),
-                            Icon(Icons.playlist_add,
-                                size: height * 0.07, color: Colors.grey),
-                          ],
-                        ),
-                        SizedBox(height: height * 0.02),
-                      ],
+                              IconButton(
+                                icon: const Icon(Icons.skip_next),
+                                iconSize: buttonSize * 0.5,
+                                color: Colors.grey[700],
+                                onPressed: () async {
+                                  await _audioPlayerService.playNextTrack();
+                                },
+                              ),
+                            ],
+                          ),
+                          // Spacer() kaldırıldı
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.shuffle),
+                                iconSize: height * 0.07,
+                                color: _isShuffleEnabled
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.grey,
+                                onPressed: _toggleShuffle,
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  _loopMode == LoopMode.off
+                                      ? Icons.repeat
+                                      : _loopMode == LoopMode.all
+                                          ? Icons.repeat
+                                          : Icons.repeat_one,
+                                ),
+                                iconSize: height * 0.07,
+                                color: _loopMode != LoopMode.off
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.grey,
+                                onPressed: _toggleRepeat,
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  _isLiked
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                ),
+                                iconSize: height * 0.07,
+                                color: _isLiked
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.grey,
+                                onPressed: _toggleLikeStatus,
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.playlist_add),
+                                iconSize: height * 0.07,
+                                color: Colors.grey,
+                                onPressed: () {},
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: height * 0.02),
+                        ],
+                      ),
                     ),
                   );
                 },

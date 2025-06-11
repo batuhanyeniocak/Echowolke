@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/data/tracks_data.dart';
+import 'package:flutter_app/models/track.dart';
 import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/library_screen.dart';
@@ -9,6 +10,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_app/services/firebase_service.dart';
 import 'package:flutter_app/screens/auth_screen.dart';
+import 'package:flutter_app/services/audio_player_service.dart';
+import 'package:flutter_app/widgets/player_mini.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,7 +35,7 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -54,10 +57,8 @@ class MyApp extends StatelessWidget {
             );
           }
           if (snapshot.hasData && snapshot.data != null) {
-            print('Kullanıcı giriş yaptı: ${snapshot.data!.email}');
             return const MainScreen();
           }
-          print('Kullanıcı giriş yapmadı.');
           return const AuthScreen();
         },
       ),
@@ -75,6 +76,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+  final AudioPlayerService _audioPlayerService = AudioPlayerService();
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -85,7 +87,38 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_selectedIndex],
+      body: Column(
+        children: [
+          Expanded(
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _screens,
+            ),
+          ),
+          StreamBuilder<Track?>(
+            stream: _audioPlayerService.currentTrackStream,
+            builder: (context, snapshot) {
+              final currentTrack = snapshot.data;
+              if (currentTrack == null) {
+                return const SizedBox.shrink();
+              }
+              final isPlaying = _audioPlayerService.isPlaying;
+
+              return PlayerMini(
+                track: currentTrack,
+                isPlaying: isPlaying,
+                onPlayPause: () {
+                  if (_audioPlayerService.isPlaying) {
+                    _audioPlayerService.pauseTrack();
+                  } else {
+                    _audioPlayerService.playTrack(currentTrack);
+                  }
+                },
+              );
+            },
+          ),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
