@@ -26,10 +26,17 @@ void main() async {
     print("TracksData yüklenirken hata: $e");
   }
 
+  final firebaseService = FirebaseService();
+  final audioPlayerService = AudioPlayerService();
+  audioPlayerService.setFirebaseService(firebaseService);
+
   runApp(
     Provider<FirebaseService>(
-      create: (context) => FirebaseService(),
-      child: const MyApp(),
+      create: (context) => firebaseService,
+      child: Provider<AudioPlayerService>(
+        create: (context) => audioPlayerService,
+        child: const MyApp(),
+      ),
     ),
   );
 }
@@ -76,7 +83,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
-  final AudioPlayerService _audioPlayerService = AudioPlayerService();
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -86,6 +92,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final audioPlayerService = Provider.of<AudioPlayerService>(context);
+
     return Scaffold(
       body: Column(
         children: [
@@ -96,22 +104,22 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           StreamBuilder<Track?>(
-            stream: _audioPlayerService.currentTrackStream,
+            stream: audioPlayerService.currentTrackStream,
             builder: (context, snapshot) {
               final currentTrack = snapshot.data;
               if (currentTrack == null) {
                 return const SizedBox.shrink();
               }
-              final isPlaying = _audioPlayerService.isPlaying;
+              final isPlaying = audioPlayerService.isPlaying;
 
               return PlayerMini(
                 track: currentTrack,
                 isPlaying: isPlaying,
                 onPlayPause: () {
-                  if (_audioPlayerService.isPlaying) {
-                    _audioPlayerService.pauseTrack();
+                  if (audioPlayerService.isPlaying) {
+                    audioPlayerService.pauseTrack();
                   } else {
-                    _audioPlayerService.playTrack(currentTrack);
+                    audioPlayerService.playTrack(currentTrack);
                   }
                 },
               );

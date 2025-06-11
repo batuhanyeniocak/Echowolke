@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // CachedNetworkImage'i import ediyoruz
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/track.dart';
 import '../screens/player_screen.dart';
 

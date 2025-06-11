@@ -69,6 +69,16 @@ class FirebaseService {
     });
   }
 
+  Future<void> incrementTrackPlayCount(String trackId) async {
+    try {
+      await _firestore.collection('tracks').doc(trackId).update({
+        'playCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      print('PlayCount artırılırken hata: $e');
+    }
+  }
+
   Future<UserCredential?> registerWithEmailAndPassword(
       String email, String password) async {
     try {

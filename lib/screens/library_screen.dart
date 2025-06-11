@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_app/services/firebase_service.dart';
 import 'add_song_screen.dart';
-import 'liked_songs_screen.dart'; // Yeni beğenilen şarkılar ekranını import ediyoruz
+import 'liked_songs_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({Key? key}) : super(key: key);
@@ -56,8 +56,6 @@ class LibraryScreen extends StatelessWidget {
             ),
           ),
           const Divider(),
-
-          // Beğenilenler ListTile'ı şimdi LikedSongsScreen'e yönlendiriyor
           ListTile(
             leading: const Icon(Icons.favorite),
             title: const Text('Beğendiklerim'),
@@ -100,7 +98,6 @@ class LibraryScreen extends StatelessWidget {
             },
           ),
           const Divider(),
-
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),

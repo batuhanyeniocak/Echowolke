@@ -495,7 +495,6 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ],
                     ),
                     child: SingleChildScrollView(
-                      // Changed: Column'u SingleChildScrollView ile sardık
                       child: Column(
                         children: [
                           Column(
@@ -641,7 +640,6 @@ class _PlayerScreenState extends State<PlayerScreen>
                               ),
                             ],
                           ),
-                          // Spacer() kaldırıldı
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [

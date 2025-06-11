@@ -70,8 +70,7 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
             return const Center(child: Text('Henüz beğenilen şarkınız yok.'));
           }
 
-          final likedTracks =
-              snapshot.data!; // .reversed.toList() kısmı kaldırıldı
+          final likedTracks = snapshot.data!;
 
           return ListView.builder(
             itemCount: likedTracks.length,
