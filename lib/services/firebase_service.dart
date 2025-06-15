@@ -62,10 +62,22 @@ class FirebaseService {
         .collection('likedSongs')
         .orderBy('likedAt', descending: true)
         .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Track.fromFirestore(doc.data()))
-          .toList();
+        .asyncMap((likedSongsSnapshot) async {
+      List<Track> likedTracksWithLatestData = [];
+      for (var likedSongDoc in likedSongsSnapshot.docs) {
+        final trackId = likedSongDoc.id;
+        final mainTrackDoc =
+            await _firestore.collection('tracks').doc(trackId).get();
+
+        if (mainTrackDoc.exists) {
+          Track track = Track.fromFirestore(mainTrackDoc.data()!);
+          likedTracksWithLatestData.add(track);
+        } else {
+          print(
+              'Uyarı: Ana koleksiyonda IDsi ${trackId} olan şarkı bulunamadı.');
+        }
+      }
+      return likedTracksWithLatestData;
     });
   }
 
