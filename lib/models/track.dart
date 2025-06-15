@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
 class Track {
   final String id;
@@ -25,9 +27,9 @@ class Track {
     this.isLiked = false,
   });
 
-  factory Track.fromFirestore(Map<String, dynamic> data) {
+  factory Track.fromFirestore(Map<String, dynamic> data, String id) {
     return Track(
-      id: data['id'] ?? '',
+      id: id,
       title: data['title'] ?? '',
       artist: data['artist'] ?? '',
       coverUrl: data['coverUrl'] ?? '',
@@ -51,5 +53,18 @@ class Track {
       'playCount': playCount,
       'releaseDate': Timestamp.fromDate(releaseDate),
     };
+  }
+
+  AudioSource toAudioSource() {
+    return AudioSource.uri(
+      Uri.parse(audioUrl),
+      tag: MediaItem(
+        id: id,
+        title: title,
+        artist: artist,
+        artUri: Uri.parse(coverUrl),
+        duration: Duration(seconds: duration),
+      ),
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_app/services/firebase_service.dart';
 import 'add_song_screen.dart';
 import 'liked_songs_screen.dart';
+import 'playlists_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({Key? key}) : super(key: key);
@@ -77,7 +78,18 @@ class LibraryScreen extends StatelessWidget {
             leading: const Icon(Icons.playlist_play),
             title: const Text('Çalma Listelerim'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                PageRouteBuilder(
+                  pageBuilder: (context, animation1, animation2) =>
+                      const PlaylistsScreen(),
+                  transitionDuration: Duration.zero,
+                  transitionsBuilder: (context, animation1, animation2, child) {
+                    return child;
+                  },
+                ),
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.history),

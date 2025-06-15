@@ -20,9 +20,12 @@ class AudioPlayerService {
   Track? _currentTrack;
   final BehaviorSubject<Track?> _currentTrackSubject =
       BehaviorSubject<Track?>();
+  final BehaviorSubject<bool> _isPlayingSubject =
+      BehaviorSubject<bool>.seeded(false);
   FirebaseService? _firebaseService;
 
   Stream<Track?> get currentTrackStream => _currentTrackSubject.stream;
+  Stream<bool> get isPlayingStream => _isPlayingSubject.stream;
   Track? get currentTrack => _currentTrack;
   bool get isPlaying => audioPlayer.playing;
 
@@ -37,6 +40,7 @@ class AudioPlayerService {
       androidNotificationOngoing: true,
     );
     audioPlayer.playerStateStream.listen((playerState) {
+      _isPlayingSubject.add(playerState.playing);
       if (playerState.processingState == ProcessingState.completed) {
         playNextTrack();
       }
@@ -125,5 +129,11 @@ class AudioPlayerService {
       _currentTrack = null;
       _currentTrackSubject.add(null);
     }
+  }
+
+  void dispose() {
+    _currentTrackSubject.close();
+    _isPlayingSubject.close();
+    audioPlayer.dispose();
   }
 }

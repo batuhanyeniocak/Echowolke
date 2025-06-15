@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_app/services/firebase_service.dart';
 import '../models/track.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
 class AddSongScreen extends StatefulWidget {
   const AddSongScreen({Key? key}) : super(key: key);
@@ -34,39 +35,38 @@ class _AddSongScreenState extends State<AddSongScreen> {
   Future<void> pickMp3File() async {
     final AudioPlayer player = AudioPlayer();
     try {
-      print('MP3 dosyası seçimi başlatıldı...');
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.audio,
         allowMultiple: false,
+        withData: kIsWeb,
+        withReadStream: !kIsWeb,
       );
 
       if (result != null) {
-        print('Dosya seçildi: ${result.files.single.name}');
         String fileName = result.files.single.name;
         titleController.text = fileName.replaceAll('.mp3', '');
+        mp3FileName = fileName;
+
+        final tempMediaItem = MediaItem(
+          id: fileName,
+          title: fileName.replaceAll('.mp3', ''),
+          artist: 'Bilinmiyor',
+        );
+
+        AudioSource audioSource;
 
         if (kIsWeb) {
           selectedMp3Bytes = result.files.single.bytes;
-          mp3FileName = result.files.single.name;
           setState(() {});
 
           if (selectedMp3Bytes != null && selectedMp3Bytes!.isNotEmpty) {
-            print(
-                'Web için ses kaynağı ayarlanıyor... Boyut: ${selectedMp3Bytes!.length} bytes');
-            final audioSource = AudioSource.uri(
+            audioSource = AudioSource.uri(
               Uri.dataFromBytes(selectedMp3Bytes!, mimeType: 'audio/mpeg'),
+              tag: tempMediaItem,
             );
-            await player.setAudioSource(audioSource);
-            await player.load();
-
-            print(
-                'Web için ses kaynağı ayarlandı. Süre: ${player.duration?.inSeconds} saniye');
-            durationController.text =
-                player.duration?.inSeconds.toString() ?? '0';
           } else {
-            print(
-                'Hata: Web için MP3 baytları boş veya null. Süre 0 olarak ayarlandı.');
             durationController.text = '0';
+            return;
           }
         } else {
           if (result.files.single.path != null) {
@@ -74,42 +74,39 @@ class _AddSongScreenState extends State<AddSongScreen> {
             setState(() {});
 
             if (await selectedMp3File!.exists()) {
-              print(
-                  'Mobil için dosya yolu ayarlanıyor: ${selectedMp3File!.path}');
-              await player.setFilePath(selectedMp3File!.path);
-              await player.load();
-
-              print(
-                  'Mobil için dosya yolu ayarlandı. Süre: ${player.duration?.inSeconds} saniye');
-              durationController.text =
-                  player.duration?.inSeconds.toString() ?? '0';
+              audioSource = AudioSource.file(
+                selectedMp3File!.path,
+                tag: tempMediaItem,
+              );
             } else {
-              print(
-                  'Hata: Mobil için MP3 dosyası bulunamadı: ${selectedMp3File!.path}. Süre 0 olarak ayarlandı.');
               durationController.text = '0';
+              return;
             }
           } else {
-            print(
-                'Hata: Mobil için MP3 dosya yolu null. Süre 0 olarak ayarlandı.');
             durationController.text = '0';
+            return;
           }
         }
-        print(
-            'durationController\'a yazılan son süre: ${durationController.text}');
-      } else {
-        print('MP3 dosyası seçimi iptal edildi.');
+
+        await player.setAudioSource(audioSource);
+        await player.load();
+
+        await player.processingStateStream
+            .firstWhere((state) => state == ProcessingState.ready);
+
+        if (player.duration != null) {
+          durationController.text = player.duration!.inSeconds.toString();
+        } else {
+          durationController.text = '0';
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Dosya seçme veya süre alma hatası: $e")),
       );
-      print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-      print("HATA: Dosya seçme veya süre alma sırasında bir sorun oluştu: $e");
-      print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
       durationController.text = '0';
     } finally {
       await player.dispose();
-      print('AudioPlayer dispose edildi.');
       if (mounted) setState(() {});
     }
   }
@@ -119,13 +116,15 @@ class _AddSongScreenState extends State<AddSongScreen> {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
+        withData: kIsWeb,
+        withReadStream: !kIsWeb,
       );
 
       if (result != null) {
+        coverFileName = result.files.single.name;
         if (kIsWeb) {
           setState(() {
             selectedCoverBytes = result.files.single.bytes;
-            coverFileName = result.files.single.name;
           });
         } else {
           if (result.files.single.path != null) {
@@ -139,7 +138,6 @@ class _AddSongScreenState extends State<AddSongScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Resim seçme hatası: $e")),
       );
-      print("Resim seçme hatası: $e");
     }
   }
 
@@ -182,31 +180,17 @@ class _AddSongScreenState extends State<AddSongScreen> {
       String coverImageName = '${timestamp}_${titleController.text}_cover.jpg';
 
       String audioUrl;
-      if (kIsWeb) {
-        audioUrl = await _firebaseService.uploadMp3FileFromBytes(
-          selectedMp3Bytes!,
-          audioFileName,
-        );
-      } else {
-        audioUrl = await _firebaseService.uploadMp3File(
-          selectedMp3File!,
-          audioFileName,
-        );
-      }
+      audioUrl = await _firebaseService.uploadMp3File(
+        kIsWeb ? selectedMp3Bytes! : selectedMp3File!,
+        audioFileName,
+      );
 
       String coverUrl = '';
       if (hasSelectedCover) {
-        if (kIsWeb) {
-          coverUrl = await _firebaseService.uploadCoverImageFromBytes(
-            selectedCoverBytes!,
-            coverImageName,
-          );
-        } else {
-          coverUrl = await _firebaseService.uploadCoverImage(
-            selectedCoverImage!,
-            coverImageName,
-          );
-        }
+        coverUrl = await _firebaseService.uploadCoverImage(
+          kIsWeb ? selectedCoverBytes! : selectedCoverImage!,
+          coverImageName,
+        );
       } else {
         coverUrl = 'https://via.placeholder.com/300x300?text=No+Cover';
       }
@@ -241,7 +225,6 @@ class _AddSongScreenState extends State<AddSongScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Yükleme hatası: $e")),
       );
-      print("Yükleme sırasında genel hata: $e");
     }
   }
 
@@ -277,7 +260,7 @@ class _AddSongScreenState extends State<AddSongScreen> {
                       const SizedBox(height: 8),
                       Text(
                         hasSelectedMp3
-                            ? 'Seçilen dosya: $selectedMp3DisplayName'
+                            ? 'Seçilen dosya: ${selectedMp3DisplayName}'
                             : 'MP3 dosyası seçin',
                         textAlign: TextAlign.center,
                         style: TextStyle(

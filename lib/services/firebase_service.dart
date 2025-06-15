@@ -1,9 +1,13 @@
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/track.dart';
+import '../models/playlist.dart';
+import 'package:rxdart/rxdart.dart';
 
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -11,6 +15,7 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   FirebaseAuth get auth => _auth;
+  User? get currentUser => _auth.currentUser;
 
   Future<void> addLikedSong(String userId, Track track) async {
     try {
@@ -70,7 +75,8 @@ class FirebaseService {
             await _firestore.collection('tracks').doc(trackId).get();
 
         if (mainTrackDoc.exists) {
-          Track track = Track.fromFirestore(mainTrackDoc.data()!);
+          Track track =
+              Track.fromFirestore(mainTrackDoc.data()!, mainTrackDoc.id);
           likedTracksWithLatestData.add(track);
         } else {
           print(
@@ -139,7 +145,7 @@ class FirebaseService {
   Stream<List<Track>> getAllTracks() {
     return _firestore.collection('tracks').snapshots().map((snapshot) {
       return snapshot.docs
-          .map((doc) => Track.fromFirestore(doc.data()))
+          .map((doc) => Track.fromFirestore(doc.data(), doc.id))
           .toList();
     });
   }
@@ -152,7 +158,7 @@ class FirebaseService {
           .limit(10)
           .get();
       return snapshot.docs
-          .map((doc) => Track.fromFirestore(doc.data()))
+          .map((doc) => Track.fromFirestore(doc.data(), doc.id))
           .toList();
     } catch (e) {
       return [];
@@ -167,7 +173,7 @@ class FirebaseService {
           .limit(10)
           .get();
       return snapshot.docs
-          .map((doc) => Track.fromFirestore(doc.data()))
+          .map((doc) => Track.fromFirestore(doc.data(), doc.id))
           .toList();
     } catch (e) {
       return [];
@@ -178,7 +184,7 @@ class FirebaseService {
     try {
       final doc = await _firestore.collection('tracks').doc(trackId).get();
       if (doc.exists) {
-        return Track.fromFirestore(doc.data()!);
+        return Track.fromFirestore(doc.data()!, doc.id);
       }
       return null;
     } catch (e) {
@@ -186,24 +192,26 @@ class FirebaseService {
     }
   }
 
-  Future<String> uploadMp3File(File mp3File, String fileName) async {
+  Future<String> uploadMp3File(dynamic file, String fileName) async {
     try {
       final ref = _storage.ref().child('audio/$fileName');
-      final uploadTask = ref.putFile(mp3File);
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      return downloadUrl;
-    } catch (e) {
-      throw Exception('MP3 yükleme hatası: $e');
-    }
-  }
-
-  Future<String> uploadMp3FileFromBytes(
-      Uint8List bytes, String fileName) async {
-    try {
-      final ref = _storage.ref().child('audio/$fileName');
+      UploadTask uploadTask;
       final metadata = SettableMetadata(contentType: 'audio/mpeg');
-      final uploadTask = ref.putData(bytes, metadata);
+
+      if (kIsWeb) {
+        if (file is Uint8List) {
+          uploadTask = ref.putData(file, metadata);
+        } else {
+          throw Exception(
+              "Web platformunda MP3 için dosya tipi Uint8List olmalı.");
+        }
+      } else {
+        if (file is File) {
+          uploadTask = ref.putFile(file, metadata);
+        } else {
+          throw Exception("Mobil platformda MP3 için dosya tipi File olmalı.");
+        }
+      }
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
       return downloadUrl;
@@ -212,25 +220,27 @@ class FirebaseService {
     }
   }
 
-  Future<String> uploadCoverImage(File imageFile, String fileName) async {
+  Future<String> uploadCoverImage(dynamic file, String fileName) async {
     try {
       final ref = _storage.ref().child('covers/$fileName');
+      UploadTask uploadTask;
       final metadata = SettableMetadata(contentType: 'image/jpeg');
-      final uploadTask = ref.putFile(imageFile, metadata);
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      return downloadUrl;
-    } catch (e) {
-      throw Exception('Kapak resmi yükleme hatası: $e');
-    }
-  }
 
-  Future<String> uploadCoverImageFromBytes(
-      Uint8List bytes, String fileName) async {
-    try {
-      final ref = _storage.ref().child('covers/$fileName');
-      final metadata = SettableMetadata(contentType: 'image/jpeg');
-      final uploadTask = ref.putData(bytes, metadata);
+      if (kIsWeb) {
+        if (file is Uint8List) {
+          uploadTask = ref.putData(file, metadata);
+        } else {
+          throw Exception(
+              "Web platformunda kapak resmi için dosya tipi Uint8List olmalı.");
+        }
+      } else {
+        if (file is File) {
+          uploadTask = ref.putFile(file, metadata);
+        } else {
+          throw Exception(
+              "Mobil platformda kapak resmi için dosya tipi File olmalı.");
+        }
+      }
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
       return downloadUrl;
@@ -258,11 +268,174 @@ class FirebaseService {
     }
   }
 
-  Stream<double> uploadMp3FileWithProgress(File mp3File, String fileName) {
+  Stream<double> uploadMp3FileWithProgress(dynamic file, String fileName) {
     final ref = _storage.ref().child('audio/$fileName');
-    final uploadTask = ref.putFile(mp3File);
+    UploadTask uploadTask;
+    final metadata = SettableMetadata(contentType: 'audio/mpeg');
+
+    if (kIsWeb) {
+      if (file is Uint8List) {
+        uploadTask = ref.putData(file, metadata);
+      } else {
+        throw Exception(
+            "Web platformunda MP3 progress için dosya tipi Uint8List olmalı.");
+      }
+    } else {
+      if (file is File) {
+        uploadTask = ref.putFile(file, metadata);
+      } else {
+        throw Exception(
+            "Mobil platformda MP3 progress için dosya tipi File olmalı.");
+      }
+    }
+
     return uploadTask.snapshotEvents.map((snapshot) {
       return snapshot.bytesTransferred / snapshot.totalBytes;
     });
+  }
+
+  Future<void> createPlaylist(Playlist playlist) async {
+    try {
+      await _firestore
+          .collection('playlists')
+          .doc(playlist.id)
+          .set(playlist.toFirestore());
+    } catch (e) {
+      throw Exception('Çalma listesi oluşturulurken hata: $e');
+    }
+  }
+
+  Stream<List<Playlist>> getUserPlaylists(String userId) {
+    return _firestore
+        .collection('playlists')
+        .where('creatorId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Playlist.fromFirestore(doc.data(), doc.id))
+          .toList();
+    });
+  }
+
+  Future<void> updatePlaylist(
+      String playlistId, Map<String, dynamic> data) async {
+    try {
+      await _firestore.collection('playlists').doc(playlistId).update(data);
+    } catch (e) {
+      throw Exception('Çalma listesi güncellenirken hata: $e');
+    }
+  }
+
+  Future<void> deletePlaylist(String playlistId) async {
+    try {
+      await _firestore.collection('playlists').doc(playlistId).delete();
+    } catch (e) {
+      throw Exception('Çalma listesi silinirken hata: $e');
+    }
+  }
+
+  Future<void> addTrackToPlaylist(String playlistId, String trackId) async {
+    try {
+      await _firestore.collection('playlists').doc(playlistId).update({
+        'trackIds': FieldValue.arrayUnion([trackId]),
+      });
+    } catch (e) {
+      throw Exception('Şarkı çalma listesine eklenirken hata: $e');
+    }
+  }
+
+  Future<void> removeTrackFromPlaylist(
+      String playlistId, String trackId) async {
+    try {
+      await _firestore.collection('playlists').doc(playlistId).update({
+        'trackIds': FieldValue.arrayRemove([trackId]),
+      });
+    } catch (e) {
+      throw Exception('Şarkı çalma listesinden çıkarılırken hata: $e');
+    }
+  }
+
+  Future<Playlist?> getPlaylistById(String playlistId) async {
+    try {
+      final doc =
+          await _firestore.collection('playlists').doc(playlistId).get();
+      if (doc.exists) {
+        return Playlist.fromFirestore(doc.data()!, doc.id);
+      }
+      return null;
+    } catch (e) {
+      print('Çalma listesi getirilirken hata: $e');
+      return null;
+    }
+  }
+
+  Future<List<Track>> getTracksByIds(List<String> trackIds) async {
+    if (trackIds.isEmpty) {
+      return [];
+    }
+    try {
+      final snapshot = await _firestore
+          .collection('tracks')
+          .where(FieldPath.documentId, whereIn: trackIds)
+          .get();
+      return snapshot.docs
+          .map((doc) => Track.fromFirestore(doc.data(), doc.id))
+          .toList();
+    } catch (e) {
+      print('Şarkılar ID\'lere göre getirilirken hata: $e');
+      return [];
+    }
+  }
+
+  Future<List<Track>> getAllTracksOnce() async {
+    try {
+      final snapshot = await _firestore.collection('tracks').get();
+      return snapshot.docs
+          .map((doc) => Track.fromFirestore(doc.data(), doc.id))
+          .toList();
+    } catch (e) {
+      print('Tüm şarkılar getirilirken hata: $e');
+      return [];
+    }
+  }
+
+  Stream<bool> isTrackLikedStream(String trackId) {
+    if (currentUser == null) return Stream.value(false);
+    return _firestore
+        .collection('users')
+        .doc(currentUser!.uid)
+        .collection('likedSongs')
+        .doc(trackId)
+        .snapshots()
+        .map((snapshot) => snapshot.exists);
+  }
+
+  Future<bool> isTrackLiked(String trackId) async {
+    if (currentUser == null) return false;
+    final doc = await _firestore
+        .collection('users')
+        .doc(currentUser!.uid)
+        .collection('likedSongs')
+        .doc(trackId)
+        .get();
+    return doc.exists;
+  }
+
+  Future<void> toggleLikedSong(String trackId, bool like) async {
+    if (currentUser == null) {
+      throw Exception("Kullanıcı oturum açmamış.");
+    }
+    final userLikedSongsRef = _firestore
+        .collection('users')
+        .doc(currentUser!.uid)
+        .collection('likedSongs')
+        .doc(trackId);
+
+    if (like) {
+      await userLikedSongsRef.set({'likedAt': FieldValue.serverTimestamp()});
+    } else {
+      await userLikedSongsRef.delete();
+    }
   }
 }

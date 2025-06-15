@@ -14,6 +14,11 @@ import 'package:flutter_app/services/firebase_service.dart';
 import 'package:flutter_app/screens/auth_screen.dart';
 import 'package:flutter_app/services/audio_player_service.dart';
 import 'package:flutter_app/widgets/player_mini.dart';
+import 'package:rxdart/rxdart.dart';
+import 'screens/playlists_screen.dart';
+import 'screens/create_playlist_screen.dart';
+import 'screens/playlist_detail_screen.dart'; // Yeni: PlaylistDetailScreen import edildi
+import 'models/playlist.dart'; // Playlist modeli import edildi
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,12 +36,14 @@ void main() async {
   final firebaseService = FirebaseService();
   final audioPlayerService = AudioPlayerService();
   audioPlayerService.setFirebaseService(firebaseService);
+  await audioPlayerService.init();
 
   runApp(
     Provider<FirebaseService>(
       create: (context) => firebaseService,
       child: Provider<AudioPlayerService>(
         create: (context) => audioPlayerService,
+        dispose: (context, service) => service.dispose(),
         child: const MyApp(),
       ),
     ),
@@ -134,6 +141,24 @@ class _MainScreenState extends State<MainScreen> {
                       if (settings.name == '/') {
                         return MaterialPageRoute(builder: (context) => screen);
                       }
+                      // Playlist Rotası
+                      if (settings.name == '/playlists') {
+                        return MaterialPageRoute(
+                            builder: (context) => const PlaylistsScreen());
+                      }
+                      // CreatePlaylist Rotası
+                      if (settings.name == '/createPlaylist') {
+                        return MaterialPageRoute(
+                            builder: (context) => const CreatePlaylistScreen());
+                      }
+                      // PlaylistDetail Rotası
+                      if (settings.name == '/playlistDetail') {
+                        final args = settings.arguments
+                            as Playlist; // Argüman olarak Playlist alıyoruz
+                        return MaterialPageRoute(
+                            builder: (context) =>
+                                PlaylistDetailScreen(playlist: args));
+                      }
                       if (settings.name == '/likedSongs') {
                         return MaterialPageRoute(
                             builder: (context) => const LikedSongsScreen());
@@ -148,20 +173,25 @@ class _MainScreenState extends State<MainScreen> {
                 }).toList(),
               ),
             ),
-            StreamBuilder<Track?>(
-              stream: audioPlayerService.currentTrackStream,
+            StreamBuilder<Tuple2<Track?, bool>>(
+              stream: Rx.combineLatest2(
+                audioPlayerService.currentTrackStream,
+                audioPlayerService.isPlayingStream,
+                (Track? track, bool isPlaying) => Tuple2(track, isPlaying),
+              ),
               builder: (context, snapshot) {
-                final currentTrack = snapshot.data;
-                if (currentTrack == null) {
+                if (!snapshot.hasData || snapshot.data!.item1 == null) {
                   return const SizedBox.shrink();
                 }
-                final isPlaying = audioPlayerService.isPlaying;
+
+                final currentTrack = snapshot.data!.item1!;
+                final isPlaying = snapshot.data!.item2;
 
                 return PlayerMini(
                   track: currentTrack,
                   isPlaying: isPlaying,
                   onPlayPause: () {
-                    if (audioPlayerService.isPlaying) {
+                    if (isPlaying) {
                       audioPlayerService.pauseTrack();
                     } else {
                       audioPlayerService.playTrack(currentTrack);
@@ -202,4 +232,10 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
+}
+
+class Tuple2<T1, T2> {
+  final T1 item1;
+  final T2 item2;
+  Tuple2(this.item1, this.item2);
 }
