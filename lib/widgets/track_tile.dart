@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/track.dart';
 import '../services/audio_player_service.dart';
 import '../screens/player_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class TrackTile extends StatefulWidget {
   final Track track;
@@ -61,10 +61,6 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
 
     _audioPlayerService.audioPlayer.positionStream.listen((position) {
       if (mounted && isCurrentTrack) {}
-    });
-
-    _audioPlayerService.audioPlayer.durationStream.listen((duration) {
-      if (mounted && duration != null) {}
     });
 
     _audioPlayerService.currentTrackStream.listen((track) {
@@ -338,7 +334,23 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
             onPressed: _handlePlayPause,
           ),
         ),
-        onTap: widget.onTap,
+        onTap: () async {
+          if (widget.onTap != null) {
+            widget.onTap!();
+          } else {
+            if (!isCurrentTrack) {
+              await _handlePlayPause();
+            }
+            if (mounted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PlayerScreen(track: widget.track),
+                ),
+              );
+            }
+          }
+        },
       ),
     );
   }

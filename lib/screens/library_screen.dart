@@ -61,10 +61,15 @@ class LibraryScreen extends StatelessWidget {
             title: const Text('Beğendiklerim'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const LikedSongsScreen()),
+              Navigator.of(context).push(
+                PageRouteBuilder(
+                  pageBuilder: (context, animation1, animation2) =>
+                      const LikedSongsScreen(),
+                  transitionDuration: Duration.zero,
+                  transitionsBuilder: (context, animation1, animation2, child) {
+                    return child;
+                  },
+                ),
               );
             },
           ),
@@ -91,9 +96,15 @@ class LibraryScreen extends StatelessWidget {
             title: const Text('Şarkı Ekle'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddSongScreen()),
+              Navigator.of(context).push(
+                PageRouteBuilder(
+                  pageBuilder: (context, animation1, animation2) =>
+                      const AddSongScreen(),
+                  transitionDuration: Duration.zero,
+                  transitionsBuilder: (context, animation1, animation2, child) {
+                    return child;
+                  },
+                ),
               );
             },
           ),
