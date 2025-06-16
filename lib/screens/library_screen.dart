@@ -8,117 +8,127 @@ import 'add_song_screen.dart';
 import 'liked_songs_screen.dart';
 import 'playlists_screen.dart';
 import 'profile_screen.dart';
+import 'edit_profile_screen.dart'; // Düzenleme ekranı import edildi
 
-class LibraryScreen extends StatefulWidget {
+class LibraryScreen extends StatelessWidget {
   const LibraryScreen({Key? key}) : super(key: key);
-
-  @override
-  State<LibraryScreen> createState() => _LibraryScreenState();
-}
-
-class _LibraryScreenState extends State<LibraryScreen> {
-  String? _username;
-  String? _profileImageUrl;
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserData();
-  }
-
-  Future<void> _loadUserData() async {
-    if (_currentUser == null) return;
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser!.uid)
-          .get();
-
-      if (mounted && userDoc.exists) {
-        setState(() {
-          _username = userDoc.data()?['username'];
-          _profileImageUrl = userDoc.data()?['profileImageUrl'];
-        });
-      }
-    } catch (e) {
-      print("Kullanıcı verisi yüklenemedi: $e");
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final firebaseService =
         Provider.of<FirebaseService>(context, listen: false);
+    final User? currentUser = FirebaseAuth.instance.currentUser;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kütüphane'),
-        backgroundColor: Colors.orange,
-        elevation: 0,
-      ),
-      body: ListView(
-        children: [
-          _buildProfileTile(context),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.favorite),
-            title: const Text('Beğendiklerim'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _navigateToPage(context, const LikedSongsScreen()),
+    if (currentUser == null) {
+      // Kullanıcı giriş yapmamışsa gösterilecek ekran
+      return Scaffold(
+        appBar: AppBar(title: const Text('Kütüphane')),
+        body: const Center(
+          child: Text('İçeriği görmek için lütfen giriş yapın.'),
+        ),
+      );
+    }
+
+    // Kullanıcı verilerini anlık olarak dinlemek için StreamBuilder kullanıldı
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        // Veri yüklenirken veya hata oluştuğunda temel bir UI göster
+        if (!snapshot.hasData &&
+            snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final userData = snapshot.data?.data() as Map<String, dynamic>?;
+        final username = userData?['username'];
+        final profileImageUrl = userData?['profileImageUrl'];
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Kütüphane'),
+            backgroundColor: Colors.orange,
+            elevation: 0,
           ),
-          ListTile(
-            leading: const Icon(Icons.playlist_play),
-            title: const Text('Çalma Listelerim'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _navigateToPage(context, const PlaylistsScreen()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.library_add),
-            title: const Text('Şarkı Ekle'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _navigateToPage(context, const AddSongScreen()),
-          ),
-          const Divider(),
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                try {
-                  await firebaseService.signOut();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Başarıyla çıkış yapıldı.')),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text('Çıkış yapılırken hata oluştu: $e'),
-                        backgroundColor: Colors.red),
-                  );
-                }
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Çıkış Yap'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          body: ListView(
+            children: [
+              _buildProfileTile(context, username, profileImageUrl),
+              const Divider(height: 1),
+              // Yeni eklenen "Profili Düzenle" butonu
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Profili Düzenle'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () =>
+                    _navigateToPage(context, const EditProfileScreen()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.favorite_border),
+                title: const Text('Beğendiklerim'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _navigateToPage(context, const LikedSongsScreen()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_play_outlined),
+                title: const Text('Çalma Listelerim'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _navigateToPage(context, const PlaylistsScreen()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.library_add_outlined),
+                title: const Text('Şarkı Ekle'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _navigateToPage(context, const AddSongScreen()),
+              ),
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0, vertical: 10.0),
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    try {
+                      await firebaseService.signOut();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Başarıyla çıkış yapıldı.')),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text('Çıkış yapılırken hata oluştu: $e'),
+                            backgroundColor: Colors.red),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Çıkış Yap'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 20),
+            ],
           ),
-          const SizedBox(height: 20),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildProfileTile(BuildContext context) {
-    final displayName = _username ?? "Profil";
-    final imageUrl = _profileImageUrl;
+  /// Profil bilgilerini ve fotoğrafını gösteren şık ListTile.
+  /// Artık anlık verileri parametre olarak alıyor.
+  Widget _buildProfileTile(
+      BuildContext context, String? username, String? imageUrl) {
+    final displayName = username ?? "Profil";
 
     return ListTile(
       contentPadding:
@@ -143,6 +153,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  /// Sayfa geçişlerini animasyonsuz yapmak için yardımcı metot.
   void _navigateToPage(BuildContext context, Widget page) {
     Navigator.of(context).push(
       PageRouteBuilder(

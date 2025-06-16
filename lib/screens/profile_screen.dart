@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../services/firebase_service.dart'; // Bu yolu kendi projenize göre güncelleyin
-import '../models/track.dart'; // Bu yolu kendi projenize göre güncelleyin
-import '../widgets/track_tile.dart'; // Bu yolu kendi projenize göre güncelleyin
-import '../services/audio_player_service.dart'; // Bu yolu kendi projenize göre güncelleyin
-import '../models/playlist.dart'; // Bu yolu kendi projenize göre güncelleyin
-import 'playlist_detail_screen.dart'; // Bu yolu kendi projenize göre güncelleyin
-import 'create_playlist_screen.dart'; // Bu yolu kendi projenize göre güncelleyin
+import 'package:flutter_app/screens/edit_profile_screen.dart'; // Bu import'u kendi projenize göre güncelleyin
+import '../services/firebase_service.dart'; // Bu import'u kendi projenize göre güncelleyin
+import '../models/track.dart'; // Bu import'u kendi projenize göre güncelleyin
+import '../widgets/track_tile.dart'; // Bu import'u kendi projenize göre güncelleyin
+import '../services/audio_player_service.dart'; // Bu import'u kendi projenize göre güncelleyin
+import '../models/playlist.dart'; // Bu import'u kendi projenize göre güncelleyin
+import 'playlist_detail_screen.dart'; // Bu import'u kendi projenize göre güncelleyin
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,54 +20,10 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final AudioPlayerService _audioPlayerService = AudioPlayerService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  User? _user;
+  final User? _user = FirebaseAuth.instance.currentUser;
 
-  Map<String, dynamic>? _userData;
-  bool _isLoading = true;
+  // Veri yükleme state'leri kaldırıldı, artık StreamBuilder yönetecek.
 
-  @override
-  void initState() {
-    super.initState();
-    _user = _auth.currentUser;
-    _loadUserData();
-  }
-
-  /// Sadece kullanıcı verilerini (kullanıcı adı, resim vb.) çeker.
-  Future<void> _loadUserData() async {
-    if (_user == null) {
-      setState(() => _isLoading = false);
-      return;
-    }
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_user!.uid)
-          .get();
-
-      if (userDoc.exists) {
-        if (mounted) {
-          setState(() {
-            _userData = userDoc.data();
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Kullanıcı verileri yüklenemedi: $e'),
-              backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  /// Süreyi biçimlendiren yardımcı metot
   String _formatDuration(int seconds) {
     if (seconds.isNaN || seconds < 0) return '00:00';
     Duration duration = Duration(seconds: seconds);
@@ -81,18 +37,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _user == null
-              ? const Center(
-                  child: Text('Profili görüntülemek için giriş yapın.'))
-              : DefaultTabController(
-                  length: 2, // Sekme sayısı 2'ye düşürüldü
+      // Ana widget StreamBuilder ile sarmalandı.
+      body: _user == null
+          ? const Center(child: Text('Profili görüntülemek için giriş yapın.'))
+          : StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(_user!.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data?.data() == null) {
+                  return const Center(child: Text("Kullanıcı bulunamadı."));
+                }
+
+                // Anlık olarak gelen veri snapshot'tan alınır.
+                final userData = snapshot.data!.data() as Map<String, dynamic>;
+
+                return DefaultTabController(
+                  length: 2,
                   child: NestedScrollView(
                     headerSliverBuilder: (context, innerBoxIsScrolled) {
                       return [
                         _buildSliverAppBar(),
-                        SliverToBoxAdapter(child: _buildProfileInfo()),
+                        SliverToBoxAdapter(child: _buildProfileInfo(userData)),
                         SliverPersistentHeader(
                           delegate: _SliverTabBarDelegate(_buildTabBar()),
                           pinned: true,
@@ -106,49 +76,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
-                ),
+                );
+              },
+            ),
     );
   }
 
   SliverAppBar _buildSliverAppBar() {
-    // DÜZELTME: SliverAppBar'ın yüksekliği, avatarın yarısı ve bir miktar boşluk
-    // kalacak şekilde ayarlandı. Artık görsel bir içeriği yok.
     return SliverAppBar(
       expandedHeight: 70.0,
       floating: false,
       pinned: true,
       elevation: 0,
-      // Arka plan rengi, sayfanın geri kalanıyla aynı.
       backgroundColor: Colors.transparent,
     );
   }
 
-  Widget _buildProfileInfo() {
-    final username = _userData?['username'] ?? 'Kullanıcı';
-    final location = _userData?['location'] ?? 'Türkiye';
-    final profileImageUrl = _userData?['profileImageUrl'] ??
-        'https://placehold.co/100x100/ffffff/ff7700?text=Profil';
+  // Metot artık anlık veriyi parametre olarak alıyor.
+  Widget _buildProfileInfo(Map<String, dynamic> userData) {
+    final username = userData['username'] ?? 'Kullanıcı';
+    final profileImageUrl = userData['profileImageUrl'] ?? '';
 
-    // DÜZELTME: Stack yerine Column ve Transform.translate kullanılarak daha stabil
-    // bir layout oluşturuldu. Bu, render hatalarını ve görsel bug'ı önler.
     return Column(
       children: [
         Transform.translate(
-          // Avatarı yukarı kaydırır (yüksekliğinin yarısı kadar)
           offset: const Offset(0, -50),
           child: CircleAvatar(
             radius: 50,
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             child: CircleAvatar(
               radius: 46,
-              backgroundImage: CachedNetworkImageProvider(profileImageUrl),
-              onBackgroundImageError: (_, __) {},
+              backgroundImage: profileImageUrl.isNotEmpty
+                  ? CachedNetworkImageProvider(profileImageUrl)
+                  : null,
+              // HATA DÜZELTMESİ: Bu satır, backgroundImage null olduğunda
+              // hataya neden olduğu için kaldırıldı.
+              // onBackgroundImageError: (_, __) {},
               backgroundColor: Colors.grey[200],
+              child: profileImageUrl.isEmpty
+                  ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                  : null,
             ),
           ),
         ),
-        // Avatarın yukarı kaydırılmasıyla oluşan boşluğu kapatmak için
-        // geri kalan içeriği de yukarı kaydırıyoruz.
         Transform.translate(
           offset: const Offset(0, -50),
           child: Padding(
@@ -158,9 +128,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(username,
                     style: const TextStyle(
                         fontSize: 24, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(location,
-                    style: TextStyle(fontSize: 16, color: Colors.grey[600])),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -196,7 +163,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ElevatedButton.icon(
                       icon: const Icon(Icons.edit, size: 18),
                       label: const Text('Profili Düzenle'),
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const EditProfileScreen(),
+                          ),
+                        );
+                      },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         shape: RoundedRectangleBorder(
@@ -235,7 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       indicatorColor: Theme.of(context).primaryColor,
       tabs: const [
         Tab(text: 'Beğenilenler'),
-        Tab(text: 'Çalma Listeler'),
+        Tab(text: 'Listeler'),
       ],
     );
   }
@@ -282,7 +255,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Çalma listelerini gösteren widget
   Widget _buildPlaylistList() {
     if (_user == null) return const SizedBox.shrink();
 
