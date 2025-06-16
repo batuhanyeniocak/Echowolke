@@ -323,10 +323,13 @@ class FirebaseService {
 
   Future<void> createPlaylist(Playlist playlist) async {
     try {
+      Map<String, dynamic> playlistData = playlist.toFirestore();
+      playlistData['searchableName'] = playlist.name.toLowerCase();
+
       await _firestore
           .collection('playlists')
           .doc(playlist.id)
-          .set(playlist.toFirestore());
+          .set(playlistData);
     } catch (e) {
       throw Exception('Çalma listesi oluşturulurken hata: $e');
     }
@@ -348,6 +351,9 @@ class FirebaseService {
   Future<void> updatePlaylist(
       String playlistId, Map<String, dynamic> data) async {
     try {
+      if (data.containsKey('name')) {
+        data['searchableName'] = (data['name'] as String).toLowerCase();
+      }
       await _firestore.collection('playlists').doc(playlistId).update(data);
     } catch (e) {
       throw Exception('Çalma listesi güncellenirken hata: $e');
@@ -468,6 +474,104 @@ class FirebaseService {
       }
     } else {
       await userLikedSongsRef.delete();
+    }
+  }
+
+  Future<Map<String, dynamic>?> getUserData(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists) {
+        return doc.data();
+      }
+      return null;
+    } catch (e) {
+      print("Error fetching user data: $e");
+      return null;
+    }
+  }
+
+  Future<List<Track>> searchTracks(String query) async {
+    if (query.isEmpty) return [];
+
+    try {
+      final lowerCaseQuery = query.toLowerCase();
+      final searchEnd = '$lowerCaseQuery\uf8ff';
+
+      final titleQuery = _firestore
+          .collection('tracks')
+          .where('searchableTitle', isGreaterThanOrEqualTo: lowerCaseQuery)
+          .where('searchableTitle', isLessThanOrEqualTo: searchEnd)
+          .limit(10)
+          .get();
+
+      final artistQuery = _firestore
+          .collection('tracks')
+          .where('searchableArtist', isGreaterThanOrEqualTo: lowerCaseQuery)
+          .where('searchableArtist', isLessThanOrEqualTo: searchEnd)
+          .limit(10)
+          .get();
+
+      final results = await Future.wait([titleQuery, artistQuery]);
+
+      final titleDocs = results[0].docs;
+      final artistDocs = results[1].docs;
+
+      final Map<String, Track> uniqueTracks = {};
+
+      for (var doc in titleDocs) {
+        final track = Track.fromFirestore(doc.data(), doc.id);
+        uniqueTracks[track.id] = track;
+      }
+
+      for (var doc in artistDocs) {
+        final track = Track.fromFirestore(doc.data(), doc.id);
+        uniqueTracks[track.id] = track;
+      }
+
+      return uniqueTracks.values.toList();
+    } catch (e) {
+      print("Şarkı arama hatası: $e");
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    if (query.isEmpty) return [];
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('username', isGreaterThanOrEqualTo: query.toLowerCase())
+          .where('username',
+              isLessThanOrEqualTo: '${query.toLowerCase()}\uf8ff')
+          .limit(10)
+          .get();
+      return snapshot.docs.map((doc) {
+        var data = doc.data();
+        data['uid'] = doc.id;
+        return data;
+      }).toList();
+    } catch (e) {
+      print("Kullanıcı arama hatası: $e");
+      return [];
+    }
+  }
+
+  Future<List<Playlist>> searchPlaylists(String query) async {
+    if (query.isEmpty) return [];
+    try {
+      final lowerCaseQuery = query.toLowerCase();
+      final snapshot = await _firestore
+          .collection('playlists')
+          .where('searchableName', isGreaterThanOrEqualTo: lowerCaseQuery)
+          .where('searchableName', isLessThanOrEqualTo: '$lowerCaseQuery\uf8ff')
+          .limit(10)
+          .get();
+      return snapshot.docs
+          .map((doc) => Playlist.fromFirestore(doc.data(), doc.id))
+          .toList();
+    } catch (e) {
+      print("Çalma listesi arama hatası: $e");
+      return [];
     }
   }
 }

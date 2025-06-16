@@ -8,7 +8,7 @@ import 'add_song_screen.dart';
 import 'liked_songs_screen.dart';
 import 'playlists_screen.dart';
 import 'profile_screen.dart';
-import 'edit_profile_screen.dart'; // Düzenleme ekranı import edildi
+import 'edit_profile_screen.dart';
 
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({Key? key}) : super(key: key);
@@ -20,7 +20,6 @@ class LibraryScreen extends StatelessWidget {
     final User? currentUser = FirebaseAuth.instance.currentUser;
 
     if (currentUser == null) {
-      // Kullanıcı giriş yapmamışsa gösterilecek ekran
       return Scaffold(
         appBar: AppBar(title: const Text('Kütüphane')),
         body: const Center(
@@ -29,14 +28,12 @@ class LibraryScreen extends StatelessWidget {
       );
     }
 
-    // Kullanıcı verilerini anlık olarak dinlemek için StreamBuilder kullanıldı
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
           .doc(currentUser.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        // Veri yüklenirken veya hata oluştuğunda temel bir UI göster
         if (!snapshot.hasData &&
             snapshot.connectionState != ConnectionState.done) {
           return const Scaffold(
@@ -58,7 +55,6 @@ class LibraryScreen extends StatelessWidget {
             children: [
               _buildProfileTile(context, username, profileImageUrl),
               const Divider(height: 1),
-              // Yeni eklenen "Profili Düzenle" butonu
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
                 title: const Text('Profili Düzenle'),
@@ -124,8 +120,6 @@ class LibraryScreen extends StatelessWidget {
     );
   }
 
-  /// Profil bilgilerini ve fotoğrafını gösteren şık ListTile.
-  /// Artık anlık verileri parametre olarak alıyor.
   Widget _buildProfileTile(
       BuildContext context, String? username, String? imageUrl) {
     final displayName = username ?? "Profil";
@@ -153,7 +147,6 @@ class LibraryScreen extends StatelessWidget {
     );
   }
 
-  /// Sayfa geçişlerini animasyonsuz yapmak için yardımcı metot.
   void _navigateToPage(BuildContext context, Widget page) {
     Navigator.of(context).push(
       PageRouteBuilder(

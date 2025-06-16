@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_app/screens/edit_profile_screen.dart'; // Bu import'u kendi projenize göre güncelleyin
-import '../services/firebase_service.dart'; // Bu import'u kendi projenize göre güncelleyin
-import '../models/track.dart'; // Bu import'u kendi projenize göre güncelleyin
-import '../widgets/track_tile.dart'; // Bu import'u kendi projenize göre güncelleyin
-import '../services/audio_player_service.dart'; // Bu import'u kendi projenize göre güncelleyin
-import '../models/playlist.dart'; // Bu import'u kendi projenize göre güncelleyin
-import 'playlist_detail_screen.dart'; // Bu import'u kendi projenize göre güncelleyin
+import 'package:flutter_app/screens/edit_profile_screen.dart';
+import '../services/firebase_service.dart';
+import '../models/track.dart';
+import '../widgets/track_tile.dart';
+import '../services/audio_player_service.dart';
+import '../models/playlist.dart';
+import 'playlist_detail_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -21,8 +21,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final AudioPlayerService _audioPlayerService = AudioPlayerService();
   final User? _user = FirebaseAuth.instance.currentUser;
-
-  // Veri yükleme state'leri kaldırıldı, artık StreamBuilder yönetecek.
 
   String _formatDuration(int seconds) {
     if (seconds.isNaN || seconds < 0) return '00:00';
@@ -37,7 +35,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      // Ana widget StreamBuilder ile sarmalandı.
       body: _user == null
           ? const Center(child: Text('Profili görüntülemek için giriş yapın.'))
           : StreamBuilder<DocumentSnapshot>(
@@ -53,7 +50,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   return const Center(child: Text("Kullanıcı bulunamadı."));
                 }
 
-                // Anlık olarak gelen veri snapshot'tan alınır.
                 final userData = snapshot.data!.data() as Map<String, dynamic>;
 
                 return DefaultTabController(
@@ -92,7 +88,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Metot artık anlık veriyi parametre olarak alıyor.
   Widget _buildProfileInfo(Map<String, dynamic> userData) {
     final username = userData['username'] ?? 'Kullanıcı';
     final profileImageUrl = userData['profileImageUrl'] ?? '';
@@ -109,9 +104,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               backgroundImage: profileImageUrl.isNotEmpty
                   ? CachedNetworkImageProvider(profileImageUrl)
                   : null,
-              // HATA DÜZELTMESİ: Bu satır, backgroundImage null olduğunda
-              // hataya neden olduğu için kaldırıldı.
-              // onBackgroundImageError: (_, __) {},
               backgroundColor: Colors.grey[200],
               child: profileImageUrl.isEmpty
                   ? const Icon(Icons.person, size: 50, color: Colors.grey)

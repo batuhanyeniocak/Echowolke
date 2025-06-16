@@ -16,7 +16,7 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  // Controller'lar
+
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _currentPasswordController = TextEditingController();
@@ -48,7 +48,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  /// Mevcut kullanıcı verilerini Firestore'dan çeker.
   Future<void> _loadUserData() async {
     if (_currentUser == null) {
       setState(() => _isFetchingData = false);
@@ -74,7 +73,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  /// Cihazdan resim seçer.
   Future<void> _pickImage() async {
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.image);
@@ -88,7 +86,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  /// Dosyayı Storage'a yükler.
   Future<String?> _uploadFile(File? file, String path) async {
     if (file == null) return null;
     try {
@@ -101,19 +98,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  /// Ana kaydetme fonksiyonu.
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
     if (_currentUser == null) return;
 
     setState(() => _isLoading = true);
-
-    final String newUsername = _usernameController.text.trim();
+    final String newUsername = _usernameController.text.trim().toLowerCase();
     final String newEmail = _emailController.text.trim();
     final String newPassword = _newPasswordController.text.trim();
     final String currentPassword = _currentPasswordController.text.trim();
 
-    final bool isUsernameChanged = newUsername != _initialUsername;
+    final bool isUsernameChanged =
+        newUsername != _initialUsername.toLowerCase();
     final bool isEmailChanged = newEmail.isNotEmpty;
     final bool isPasswordChanged = newPassword.isNotEmpty;
     final bool isSensitiveChange =
@@ -167,20 +163,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  /// Hesabı silme işlevini yönetir.
   Future<void> _deleteAccount(String currentPassword) async {
     if (_currentUser == null) return;
 
     setState(() => _isLoading = true);
 
     try {
-      // 1. Kullanıcıyı yeniden doğrula
       final cred = EmailAuthProvider.credential(
           email: _currentUser!.email!, password: currentPassword);
       await _currentUser!.reauthenticateWithCredential(cred);
 
-      // 2. İlgili verileri sil (Storage ve Firestore)
-      // Bu adımlar opsiyoneldir ancak önerilir.
       if (_profileImageUrl != null && _profileImageUrl!.isNotEmpty) {
         try {
           await FirebaseStorage.instance.refFromURL(_profileImageUrl!).delete();
@@ -193,16 +185,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .doc(_currentUser!.uid)
           .delete();
 
-      // 3. Kullanıcıyı Firebase Auth'dan sil
       await _currentUser!.delete();
 
       _showSnackBar("Hesabınız kalıcı olarak silindi.", isError: false);
       if (mounted) {
-        // Kullanıcıyı giriş ekranına yönlendir ve tüm geçmişi temizle
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-              builder: (context) => const Text(
-                  "Giriş Ekranı")), // Burayı kendi AuthScreen'inizle değiştirin
+          MaterialPageRoute(builder: (context) => const Text("Giriş Ekranı")),
           (Route<dynamic> route) => false,
         );
       }
@@ -236,7 +224,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  /// Hesabı silmek için onay diyaloğu gösterir.
   void _showDeleteConfirmationDialog() {
     final passwordController = TextEditingController();
     showDialog(
@@ -287,7 +274,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Profili Düzenle"),
-        actions: [],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _isLoading ? null : _saveProfile,
+          ),
+        ],
       ),
       body: _isFetchingData
           ? const Center(child: CircularProgressIndicator())
@@ -299,7 +291,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   const SizedBox(height: 20),
                   _buildProfileImagePicker(),
                   const SizedBox(height: 30),
-                  // Kullanıcı adı alanı güvenlik sekmesine taşındı.
                   _buildSecuritySection(),
                   const SizedBox(height: 16),
                   _buildDeleteSection(),
@@ -360,10 +351,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _buildSecuritySection() {
     return ExpansionTile(
-      initiallyExpanded: false, // Güncellendi: Sekme kapalı başlar.
+      initiallyExpanded: false,
       title: const Text("Hesap Güvenliği",
           style: TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: const Text("Kullanıcı adı, e-posta ve şifre"), // Güncellendi
+      subtitle: const Text("Kullanıcı adı, e-posta ve şifre"),
       leading: const Icon(Icons.security_outlined),
       children: [
         Padding(
@@ -372,7 +363,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Kullanıcı adı alanı buraya taşındı.
               TextFormField(
                 controller: _usernameController,
                 decoration: const InputDecoration(
@@ -456,7 +446,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  /// Hesabı silme bölümünü oluşturan widget.
   Widget _buildDeleteSection() {
     return ExpansionTile(
       title: const Text("Hesabı Sil",

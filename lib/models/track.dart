@@ -47,6 +47,8 @@ class Track {
       'id': id,
       'title': title,
       'artist': artist,
+      'searchableTitle': title.toLowerCase(),
+      'searchableArtist': artist.toLowerCase(),
       'coverUrl': coverUrl,
       'audioUrl': audioUrl,
       'duration': duration,
