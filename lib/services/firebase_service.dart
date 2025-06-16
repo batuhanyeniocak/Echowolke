@@ -17,6 +17,82 @@ class FirebaseService {
   FirebaseAuth get auth => _auth;
   User? get currentUser => _auth.currentUser;
 
+  Future<UserCredential> signInWithUsernameAndPassword(
+      String username, String password) async {
+    final querySnapshot = await _firestore
+        .collection('users')
+        .where('username', isEqualTo: username)
+        .limit(1)
+        .get();
+
+    if (querySnapshot.docs.isEmpty) {
+      throw Exception('Bu kullanıcı adına sahip bir hesap bulunamadı.');
+    }
+    final userDoc = querySnapshot.docs.first;
+    final email = userDoc.data()['email'] as String?;
+
+    if (email == null) {
+      throw Exception('Kullanıcı verisi bozuk, e-posta adresi eksik.');
+    }
+
+    try {
+      return await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException {
+      rethrow;
+    }
+  }
+
+  Future<UserCredential> registerWithUsernameEmailAndPassword(
+      String username, String email, String password) async {
+    final existingUser = await _firestore
+        .collection('users')
+        .where('username', isEqualTo: username.toLowerCase())
+        .limit(1)
+        .get();
+
+    if (existingUser.docs.isNotEmpty) {
+      throw Exception(
+          'Bu kullanıcı adı zaten kullanılıyor. Lütfen farklı bir tane seçin.');
+    }
+
+    UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+
+    if (userCredential.user != null) {
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+        'username': username.toLowerCase(),
+        'email': email,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    return userCredential;
+  }
+
+  String getErrorMessage(String errorCode) {
+    switch (errorCode) {
+      case 'email-already-in-use':
+        return 'Bu e-posta adresi zaten başka bir hesap tarafından kullanılıyor.';
+      case 'invalid-email':
+        return 'Geçersiz e-posta adresi formatı.';
+      case 'weak-password':
+        return 'Şifreniz çok zayıf. Lütfen daha güçlü bir şifre seçin.';
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Kullanıcı adı veya şifre hatalı.';
+      case 'network-request-failed':
+        return 'İnternet bağlantınızı kontrol edin.';
+      default:
+        return 'Bir hata oluştu. Lütfen tekrar deneyin.';
+    }
+  }
+
   Future<void> addLikedSong(String userId, Track track) async {
     try {
       Map<String, dynamic> dataToSave = track.toFirestore();
@@ -43,20 +119,6 @@ class FirebaseService {
           .delete();
     } catch (e) {
       rethrow;
-    }
-  }
-
-  Future<bool> isSongLiked(String userId, String trackId) async {
-    try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('likedSongs')
-          .doc(trackId)
-          .get();
-      return doc.exists;
-    } catch (e) {
-      return false;
     }
   }
 
@@ -94,41 +156,6 @@ class FirebaseService {
       });
     } catch (e) {
       print('PlayCount artırılırken hata: $e');
-    }
-  }
-
-  Future<UserCredential?> registerWithEmailAndPassword(
-      String email, String password) async {
-    try {
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      await _firestore.collection('users').doc(userCredential.user!.uid).set({
-        'email': email,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      return userCredential;
-    } on FirebaseAuthException catch (e) {
-      rethrow;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<UserCredential?> signInWithEmailAndPassword(
-      String email, String password) async {
-    try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      return userCredential;
-    } on FirebaseAuthException catch (e) {
-      rethrow;
-    } catch (e) {
-      rethrow;
     }
   }
 
@@ -433,7 +460,12 @@ class FirebaseService {
         .doc(trackId);
 
     if (like) {
-      await userLikedSongsRef.set({'likedAt': FieldValue.serverTimestamp()});
+      final trackDoc = await _firestore.collection('tracks').doc(trackId).get();
+      if (trackDoc.exists) {
+        await userLikedSongsRef.set({
+          'likedAt': FieldValue.serverTimestamp(),
+        });
+      }
     } else {
       await userLikedSongsRef.delete();
     }

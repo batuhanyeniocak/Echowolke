@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_app/services/firebase_service.dart';
 
@@ -11,6 +12,7 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final FirebaseService _firebaseService = FirebaseService();
@@ -19,7 +21,8 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _isLoading = false;
 
   void _submitAuthForm() async {
-    if (!_formKey.currentState!.validate()) {
+    final isValid = _formKey.currentState?.validate() ?? false;
+    if (!isValid) {
       return;
     }
     _formKey.currentState!.save();
@@ -28,62 +31,53 @@ class _AuthScreenState extends State<AuthScreen> {
       _isLoading = true;
     });
 
-    String message = '';
-
     try {
       if (_isLogin) {
-        await _firebaseService.signInWithEmailAndPassword(
-          _emailController.text.trim(),
+        await _firebaseService.signInWithUsernameAndPassword(
+          _usernameController.text.trim(),
           _passwordController.text.trim(),
         );
-        message = 'Giriş başarılı!';
       } else {
-        await _firebaseService.registerWithEmailAndPassword(
+        await _firebaseService.registerWithUsernameEmailAndPassword(
+          _usernameController.text.trim(),
           _emailController.text.trim(),
           _passwordController.text.trim(),
         );
-        message = 'Kayıt başarılı!';
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    } on Exception catch (error) {
-      String errorMessage = 'Bir hata oluştu. Lütfen tekrar deneyin.';
-      if (error is FirebaseException) {
-        switch (error.code) {
-          case 'email-already-in-use':
-            errorMessage = 'Bu e-posta adresi zaten kullanılıyor.';
-            break;
-          case 'invalid-email':
-            errorMessage = 'Geçersiz e-posta adresi.';
-            break;
-          case 'weak-password':
-            errorMessage = 'Şifre çok zayıf.';
-            break;
-          case 'user-not-found':
-          case 'wrong-password':
-            errorMessage = 'Geçersiz e-posta veya şifre.';
-            break;
-          case 'network-request-failed':
-            errorMessage = 'İnternet bağlantınızı kontrol edin.';
-            break;
-          default:
-            errorMessage = error.message ?? errorMessage;
-        }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(_isLogin
+                  ? 'Giriş başarılı!'
+                  : 'Kayıt başarılı! Hoş geldiniz.')),
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-      );
-      print('Kimlik doğrulama hatası: $error');
+    } on FirebaseAuthException catch (error) {
+      String errorMessage = _firebaseService.getErrorMessage(error.code);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(error.toString()), backgroundColor: Colors.red),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   void dispose() {
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -107,24 +101,40 @@ class _AuthScreenState extends State<AuthScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextFormField(
-                    key: const ValueKey('email'),
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
+                    key: const ValueKey('username'),
+                    controller: _usernameController,
+                    keyboardType: TextInputType.text,
                     decoration: const InputDecoration(
-                      labelText: 'E-posta Adresi',
-                      prefixIcon: Icon(Icons.email),
+                      labelText: 'Kullanıcı Adı',
+                      prefixIcon: Icon(Icons.person),
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) {
-                      if (value == null ||
-                          value.isEmpty ||
-                          !value.contains('@')) {
-                        return 'Geçerli bir e-posta adresi girin.';
+                      if (value == null || value.trim().length < 4) {
+                        return 'Kullanıcı adı en az 4 karakter olmalı.';
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
+                  if (!_isLogin)
+                    TextFormField(
+                      key: const ValueKey('email'),
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'E-posta Adresi',
+                        prefixIcon: Icon(Icons.email),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || !value.contains('@')) {
+                          return 'Geçerli bir e-posta adresi girin.';
+                        }
+                        return null;
+                      },
+                    ),
+                  if (!_isLogin) const SizedBox(height: 12),
                   TextFormField(
                     key: const ValueKey('password'),
                     controller: _passwordController,
@@ -135,15 +145,16 @@ class _AuthScreenState extends State<AuthScreen> {
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty || value.length < 6) {
+                      if (value == null || value.length < 6) {
                         return 'Şifre en az 6 karakter olmalı.';
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 20),
-                  if (_isLoading) const CircularProgressIndicator(),
-                  if (!_isLoading)
+                  if (_isLoading)
+                    const CircularProgressIndicator()
+                  else ...[
                     ElevatedButton(
                       onPressed: _submitAuthForm,
                       style: ElevatedButton.styleFrom(
@@ -156,8 +167,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                       child: Text(_isLogin ? 'Giriş Yap' : 'Kayıt Ol'),
                     ),
-                  const SizedBox(height: 12),
-                  if (!_isLoading)
+                    const SizedBox(height: 12),
                     TextButton(
                       onPressed: () {
                         setState(() {
@@ -173,6 +183,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             : 'Zaten bir hesabınız var mı? Giriş Yapın',
                       ),
                     ),
+                  ],
                 ],
               ),
             ),

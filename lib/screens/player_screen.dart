@@ -99,8 +99,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _checkLikedStatus() async {
     if (_currentUserId != null) {
-      final bool liked =
-          await _firebaseService.isSongLiked(_currentUserId!, _activeTrack.id);
+      final bool liked = await _firebaseService.isTrackLiked(_activeTrack.id);
       if (mounted) {
         setState(() {
           _isLiked = liked;
