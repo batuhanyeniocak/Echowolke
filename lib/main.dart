@@ -17,8 +17,10 @@ import 'package:flutter_app/widgets/player_mini.dart';
 import 'package:rxdart/rxdart.dart';
 import 'screens/playlists_screen.dart';
 import 'screens/create_playlist_screen.dart';
-import 'screens/playlist_detail_screen.dart'; // Yeni: PlaylistDetailScreen import edildi
-import 'models/playlist.dart'; // Playlist modeli import edildi
+import 'screens/playlist_detail_screen.dart';
+import 'models/playlist.dart';
+import 'package:flutter_app/theme/app_theme.dart';
+import 'package:flutter_app/screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,28 +59,33 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Echowolke',
-      theme: ThemeData(
-        primarySwatch: Colors.orange,
-        scaffoldBackgroundColor: Colors.grey[50],
-        fontFamily: 'Roboto',
-      ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            );
-          }
-          if (snapshot.hasData && snapshot.data != null) {
-            return const MainScreen();
-          }
-          return const AuthScreen();
-        },
-      ),
+      theme: AppTheme.lightTheme,
+      home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class MainAppRouter extends StatelessWidget {
+  const MainAppRouter({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        if (snapshot.hasData && snapshot.data != null) {
+          return const MainScreen();
+        }
+        return const AuthScreen();
+      },
     );
   }
 }
@@ -141,20 +148,16 @@ class _MainScreenState extends State<MainScreen> {
                       if (settings.name == '/') {
                         return MaterialPageRoute(builder: (context) => screen);
                       }
-                      // Playlist Rotası
                       if (settings.name == '/playlists') {
                         return MaterialPageRoute(
                             builder: (context) => const PlaylistsScreen());
                       }
-                      // CreatePlaylist Rotası
                       if (settings.name == '/createPlaylist') {
                         return MaterialPageRoute(
                             builder: (context) => const CreatePlaylistScreen());
                       }
-                      // PlaylistDetail Rotası
                       if (settings.name == '/playlistDetail') {
-                        final args = settings.arguments
-                            as Playlist; // Argüman olarak Playlist alıyoruz
+                        final args = settings.arguments as Playlist;
                         return MaterialPageRoute(
                             builder: (context) =>
                                 PlaylistDetailScreen(playlist: args));
