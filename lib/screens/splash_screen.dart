@@ -13,15 +13,15 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToNextScreen();
+    _navigateToAuthChecker();
   }
 
-  _navigateToNextScreen() async {
+  _navigateToAuthChecker() async {
     await Future.delayed(const Duration(milliseconds: 2000));
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MainAppRouter()),
+        MaterialPageRoute(builder: (context) => const AuthWrapperScreen()),
       );
     }
   }

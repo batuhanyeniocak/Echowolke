@@ -19,8 +19,7 @@ import 'screens/playlists_screen.dart';
 import 'screens/create_playlist_screen.dart';
 import 'screens/playlist_detail_screen.dart';
 import 'models/playlist.dart';
-import 'package:flutter_app/theme/app_theme.dart';
-import 'package:flutter_app/screens/splash_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,15 +58,19 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Echowolke',
-      theme: AppTheme.lightTheme,
+      theme: ThemeData(
+        primarySwatch: Colors.orange,
+        scaffoldBackgroundColor: Colors.grey[50],
+        fontFamily: 'Roboto',
+      ),
       home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-class MainAppRouter extends StatelessWidget {
-  const MainAppRouter({super.key});
+class AuthWrapperScreen extends StatelessWidget {
+  const AuthWrapperScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
