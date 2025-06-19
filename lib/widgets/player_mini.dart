@@ -17,6 +17,9 @@ class PlayerMini extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -28,7 +31,7 @@ class PlayerMini extends StatelessWidget {
       },
       child: Container(
         height: 60,
-        color: Theme.of(context).primaryColor.withOpacity(0.1),
+        color: colorScheme.surface,
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: Row(
           children: [
@@ -42,16 +45,19 @@ class PlayerMini extends StatelessWidget {
                 placeholder: (context, url) => Container(
                   width: 40,
                   height: 40,
-                  color: Colors.grey[300],
-                  child: const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2)),
+                  color: colorScheme.surface.withOpacity(0.5),
+                  child: Center(
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              colorScheme.primary))),
                 ),
                 errorWidget: (context, url, error) => Container(
                   width: 40,
                   height: 40,
-                  color: Colors.grey[400],
-                  child: const Icon(Icons.music_note,
-                      color: Colors.white, size: 20),
+                  color: colorScheme.surface.withOpacity(0.7),
+                  child: Icon(Icons.music_note,
+                      color: colorScheme.onSurface, size: 20),
                 ),
               ),
             ),
@@ -63,12 +69,16 @@ class PlayerMini extends StatelessWidget {
                 children: [
                   Text(
                     track.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: textTheme.titleMedium?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     track.artist,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                        fontSize: 12),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -77,7 +87,7 @@ class PlayerMini extends StatelessWidget {
             IconButton(
               icon: Icon(
                 isPlaying ? Icons.pause : Icons.play_arrow,
-                color: Theme.of(context).primaryColor,
+                color: colorScheme.primary,
               ),
               onPressed: onPlayPause,
             ),

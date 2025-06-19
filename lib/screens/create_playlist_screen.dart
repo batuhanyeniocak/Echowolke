@@ -47,7 +47,6 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
   }
 
   Future<void> _pickImage() async {
-    print('DEBUG: _pickImage metodu başladı.');
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.image,
@@ -57,43 +56,28 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
       );
 
       if (result != null) {
-        print('DEBUG: FilePicker sonuç döndürdü.');
         final platformFile = result.files.single;
-        print('DEBUG: Seçilen dosya adı: ${platformFile.name}');
-        print('DEBUG: Seçilen dosya boyutu: ${platformFile.size} bytes');
-        print('DEBUG: kIsWeb değeri: $kIsWeb');
-
-        setState(() {
-          if (kIsWeb) {
-            _pickedImageBytes = platformFile.bytes;
-            _pickedImageFile = null;
-            print(
-                'DEBUG: Web için _pickedImageBytes ayarlandı. Boyut: ${_pickedImageBytes?.length} bytes');
-          } else {
-            if (platformFile.path != null) {
-              _pickedImageFile = File(platformFile.path!);
-              _pickedImageBytes = null;
-              print(
-                  'DEBUG: Mobil için _pickedImageFile ayarlandı. Yol: ${_pickedImageFile?.path}');
+        if (mounted) {
+          setState(() {
+            if (kIsWeb) {
+              _pickedImageBytes = platformFile.bytes;
+              _pickedImageFile = null;
             } else {
-              print('HATA: Mobil platformda dosya yolu boş!');
+              if (platformFile.path != null) {
+                _pickedImageFile = File(platformFile.path!);
+                _pickedImageBytes = null;
+              }
             }
-          }
-          _existingImageUrl = null;
-        });
-      } else {
-        print('DEBUG: Resim seçimi iptal edildi.');
+            _existingImageUrl = null;
+          });
+        }
       }
-    } catch (e, stackTrace) {
-      print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-      print('HATA: _pickImage sırasında beklenmedik bir hata oluştu: $e');
-      print('Stack Trace (pickImage): $stackTrace');
-      print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Resim seçme hatası: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
             duration: const Duration(seconds: 5),
           ),
         );
@@ -102,16 +86,15 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
   }
 
   Future<void> _savePlaylist() async {
-    print('DEBUG: _savePlaylist metodu başladı.');
     if (!_formKey.currentState!.validate()) {
-      print('DEBUG: Form validasyonu başarısız.');
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-      print('DEBUG: _isLoading true olarak ayarlandı.');
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       final firebaseService =
@@ -119,16 +102,17 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
       final currentUser = FirebaseAuth.instance.currentUser;
 
       if (currentUser == null) {
-        print('HATA: Kullanıcı girişi yapılmamış!');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
               content: Text('Kullanıcı girişi yapılmamış!'),
-              backgroundColor: Colors.red),
+              backgroundColor: Theme.of(context).colorScheme.error),
         );
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
         return;
       }
 
@@ -136,24 +120,19 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
       if (kIsWeb
           ? (_pickedImageBytes != null && _pickedImageBytes!.isNotEmpty)
           : (_pickedImageFile != null && await _pickedImageFile!.exists())) {
-        print('DEBUG: Yeni resim yüklemeye başlanıyor...');
         final String imageFileName = 'playlists/${const Uuid().v4()}.jpg';
 
         imageUrl = await firebaseService.uploadCoverImage(
           kIsWeb ? _pickedImageBytes : _pickedImageFile,
           imageFileName,
         );
-        print('DEBUG: Yeni resim yüklendi: $imageUrl');
       } else if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
         imageUrl = _existingImageUrl;
-        print('DEBUG: Mevcut resim URL\'si kullanılıyor: $imageUrl');
       } else {
         imageUrl = 'https://via.placeholder.com/300x300?text=Playlist+Cover';
-        print('DEBUG: Varsayılan resim URL\'si kullanılıyor: $imageUrl');
       }
 
       if (widget.playlistToEdit == null) {
-        print('DEBUG: Yeni çalma listesi oluşturuluyor...');
         final newPlaylist = Playlist(
           id: const Uuid().v4(),
           name: _nameController.text.trim(),
@@ -165,13 +144,13 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
           createdAt: DateTime.now(),
         );
         await firebaseService.createPlaylist(newPlaylist);
-        print('DEBUG: Çalma listesi Firebase\'e kaydedildi.');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Çalma listesi başarıyla oluşturuldu!')),
+          SnackBar(
+              content: Text('Çalma listesi başarıyla oluşturuldu!'),
+              backgroundColor: Theme.of(context).colorScheme.onBackground),
         );
       } else {
-        print('DEBUG: Çalma listesi güncelleniyor...');
         final Map<String, dynamic> updateData = {
           'name': _nameController.text.trim(),
           'description': _descriptionController.text.trim().isNotEmpty
@@ -181,46 +160,56 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
         };
         await firebaseService.updatePlaylist(
             widget.playlistToEdit!.id, updateData);
-        print('DEBUG: Çalma listesi Firebase\'de güncellendi.');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Çalma listesi başarıyla güncellendi!')),
+          SnackBar(
+              content: Text('Çalma listesi başarıyla güncellendi!'),
+              backgroundColor: Theme.of(context).colorScheme.onBackground),
         );
       }
       if (!mounted) return;
       Navigator.of(context).pop();
-    } catch (e, stackTrace) {
-      print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-      print('Çalma listesi yükleme/kaydetme sırasında HATA: $e');
-      print('Stack Trace: $stackTrace');
-      print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Hata oluştu: ${e.toString()}'),
-          backgroundColor: Colors.red,
+          backgroundColor: Theme.of(context).colorScheme.error,
           duration: const Duration(seconds: 5),
         ),
       );
     } finally {
-      setState(() {
-        _isLoading = false;
-        print('DEBUG: _isLoading false olarak ayarlandı.');
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Widget _buildImageDisplay() {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     if (_pickedImageFile != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: Image.file(_pickedImageFile!, fit: BoxFit.cover),
+        child: Image.file(
+          _pickedImageFile!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        ),
       );
     } else if (_pickedImageBytes != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: Image.memory(_pickedImageBytes!, fit: BoxFit.cover),
+        child: Image.memory(
+          _pickedImageBytes!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        ),
       );
     } else if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
       return ClipRRect(
@@ -228,15 +217,20 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
         child: CachedNetworkImage(
           imageUrl: _existingImageUrl!,
           fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
           placeholder: (context, url) => Container(
-            color: Colors.grey[300],
-            child:
-                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            color: colorScheme.surface.withOpacity(0.5),
+            child: Center(
+                child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(colorScheme.primary))),
           ),
           errorWidget: (context, url, error) => Container(
-            color: Colors.grey[400],
-            child:
-                const Icon(Icons.broken_image, size: 50, color: Colors.white70),
+            color: colorScheme.surface.withOpacity(0.7),
+            child: Icon(Icons.broken_image,
+                size: 50, color: colorScheme.onSurface.withOpacity(0.7)),
           ),
         ),
       );
@@ -244,11 +238,13 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.camera_alt, size: 50, color: Colors.grey[700]),
+          Icon(Icons.camera_alt,
+              size: 50, color: colorScheme.onSurface.withOpacity(0.7)),
           const SizedBox(height: 8),
           Text(
             'Kapak Fotoğrafı Seç',
-            style: TextStyle(color: Colors.grey[700]),
+            style: textTheme.bodyMedium
+                ?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
           ),
         ],
       );
@@ -257,12 +253,18 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.playlistToEdit == null
-            ? 'Yeni Çalma Listesi Oluştur'
-            : 'Çalma Listesini Düzenle'),
-        backgroundColor: Colors.orange,
+        title: Text(
+            widget.playlistToEdit == null
+                ? 'Yeni Çalma Listesi Oluştur'
+                : 'Çalma Listesini Düzenle,',
+            style:
+                textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
+        backgroundColor: colorScheme.surface,
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -278,9 +280,10 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
                   height: 180,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
+                    color: colorScheme.background,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey),
+                    border: Border.all(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
                   ),
                   child: _buildImageDisplay(),
                 ),
@@ -288,11 +291,28 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
               const SizedBox(height: 20),
               TextFormField(
                 controller: _nameController,
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Çalma Listesi Adı',
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10)),
-                  prefixIcon: const Icon(Icons.playlist_add_check),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.playlist_add_check,
+                      color: colorScheme.onSurface.withOpacity(0.8)),
+                  fillColor: colorScheme.surface,
+                  filled: true,
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -304,28 +324,52 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
               const SizedBox(height: 15),
               TextFormField(
                 controller: _descriptionController,
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Açıklama (isteğe bağlı)',
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10)),
-                  prefixIcon: const Icon(Icons.notes),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.notes,
+                      color: colorScheme.onSurface.withOpacity(0.8)),
+                  fillColor: colorScheme.surface,
+                  filled: true,
                 ),
                 maxLines: 3,
               ),
               const SizedBox(height: 25),
               _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(
+                      child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              colorScheme.primary)))
                   : ElevatedButton.icon(
                       onPressed: _savePlaylist,
-                      icon: Icon(widget.playlistToEdit == null
-                          ? Icons.add
-                          : Icons.save),
-                      label: Text(widget.playlistToEdit == null
-                          ? 'Çalma Listesi Oluştur'
-                          : 'Değişiklikleri Kaydet'),
+                      icon: Icon(
+                          widget.playlistToEdit == null
+                              ? Icons.add
+                              : Icons.save,
+                          color: colorScheme.onPrimary),
+                      label: Text(
+                          widget.playlistToEdit == null
+                              ? 'Çalma Listesi Oluştur'
+                              : 'Değişiklikleri Kaydet',
+                          style: textTheme.labelLarge),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),

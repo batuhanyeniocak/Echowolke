@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -33,10 +34,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: colorScheme.background,
       body: _user == null
-          ? const Center(child: Text('Profili görüntülemek için giriş yapın.'))
+          ? Center(
+              child: Text('Profili görüntülemek için giriş yapın.',
+                  style: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onBackground)))
           : StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('users')
@@ -44,10 +51,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(
+                      child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              colorScheme.primary)));
                 }
                 if (!snapshot.hasData || snapshot.data?.data() == null) {
-                  return const Center(child: Text("Kullanıcı bulunamadı."));
+                  return Center(
+                      child: Text("Kullanıcı bulunamadı.",
+                          style: textTheme.bodyLarge
+                              ?.copyWith(color: colorScheme.onBackground)));
                 }
 
                 final userData = snapshot.data!.data() as Map<String, dynamic>;
@@ -60,15 +73,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildSliverAppBar(),
                         SliverToBoxAdapter(child: _buildProfileInfo(userData)),
                         SliverPersistentHeader(
-                          delegate: _SliverTabBarDelegate(_buildTabBar()),
+                          delegate: _SliverTabBarDelegate(
+                              _buildTabBar(colorScheme, textTheme)),
                           pinned: true,
                         ),
                       ];
                     },
                     body: TabBarView(
                       children: [
-                        _buildLikedTrackList(),
-                        _buildPlaylistList(),
+                        _buildLikedTrackList(colorScheme, textTheme),
+                        _buildPlaylistList(colorScheme, textTheme),
                       ],
                     ),
                   ),
@@ -79,18 +93,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   SliverAppBar _buildSliverAppBar() {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return SliverAppBar(
       expandedHeight: 70.0,
       floating: false,
       pinned: true,
       elevation: 0,
       backgroundColor: Colors.transparent,
+      iconTheme: IconThemeData(color: colorScheme.onBackground),
     );
   }
 
   Widget _buildProfileInfo(Map<String, dynamic> userData) {
     final username = userData['username'] ?? 'Kullanıcı';
     final profileImageUrl = userData['profileImageUrl'] ?? '';
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
 
     return Column(
       children: [
@@ -98,15 +116,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           offset: const Offset(0, -50),
           child: CircleAvatar(
             radius: 50,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            backgroundColor: colorScheme.background,
             child: CircleAvatar(
               radius: 46,
               backgroundImage: profileImageUrl.isNotEmpty
                   ? CachedNetworkImageProvider(profileImageUrl)
                   : null,
-              backgroundColor: Colors.grey[200],
+              backgroundColor: colorScheme.surface.withOpacity(0.5),
               child: profileImageUrl.isEmpty
-                  ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                  ? Icon(Icons.person,
+                      size: 50, color: colorScheme.onSurface.withOpacity(0.7))
                   : null,
             ),
           ),
@@ -118,8 +137,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               children: [
                 Text(username,
-                    style: const TextStyle(
-                        fontSize: 24, fontWeight: FontWeight.bold)),
+                    style: textTheme.headlineSmall?.copyWith(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onBackground)),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -131,7 +152,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           final count = snapshot.hasData
                               ? snapshot.data!.length.toString()
                               : '0';
-                          return _buildStatColumn('Beğenilenler', count);
+                          return _buildStatColumn(
+                              'Beğenilenler', count, colorScheme, textTheme);
                         },
                       ),
                     ),
@@ -142,7 +164,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           final count = snapshot.hasData
                               ? snapshot.data!.length.toString()
                               : '0';
-                          return _buildStatColumn('Listeler', count);
+                          return _buildStatColumn(
+                              'Listeler', count, colorScheme, textTheme);
                         },
                       ),
                     ),
@@ -153,8 +176,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ElevatedButton.icon(
-                      icon: const Icon(Icons.edit, size: 18),
-                      label: const Text('Profili Düzenle'),
+                      icon: Icon(Icons.edit,
+                          size: 18, color: colorScheme.onPrimary),
+                      label:
+                          Text('Profili Düzenle', style: textTheme.labelLarge),
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -163,15 +188,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20)),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    IconButton(
-                        onPressed: () {},
-                        icon: const Icon(Icons.share_outlined)),
                   ],
                 ),
               ],
@@ -182,22 +206,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatColumn(String label, String value) {
+  Widget _buildStatColumn(String label, String value, ColorScheme colorScheme,
+      TextTheme textTheme) {
     return Column(
       children: [
         Text(value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            style: textTheme.titleMedium?.copyWith(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onBackground)),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+        Text(label,
+            style: textTheme.bodyMedium?.copyWith(
+                fontSize: 14,
+                color: colorScheme.onBackground.withOpacity(0.7))),
       ],
     );
   }
 
-  TabBar _buildTabBar() {
+  TabBar _buildTabBar(ColorScheme colorScheme, TextTheme textTheme) {
     return TabBar(
-      labelColor: Theme.of(context).primaryColor,
-      unselectedLabelColor: Colors.grey[600],
-      indicatorColor: Theme.of(context).primaryColor,
+      labelColor: colorScheme.primary,
+      unselectedLabelColor: colorScheme.onSurface.withOpacity(0.6),
+      indicatorColor: colorScheme.primary,
+      labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+      unselectedLabelStyle: textTheme.labelLarge,
       tabs: const [
         Tab(text: 'Beğenilenler'),
         Tab(text: 'Listeler'),
@@ -205,23 +238,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildLikedTrackList() {
+  Widget _buildLikedTrackList(ColorScheme colorScheme, TextTheme textTheme) {
     if (_user == null) return const SizedBox.shrink();
 
     return StreamBuilder<List<Track>>(
       stream: _firebaseService.getLikedSongs(_user!.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+          return Center(
+              child: CircularProgressIndicator(
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(colorScheme.primary)));
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Hata: ${snapshot.error}'));
+          return Center(
+              child: Text('Hata: ${snapshot.error}',
+                  style:
+                      textTheme.bodyLarge?.copyWith(color: colorScheme.error)));
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
               'Henüz hiç şarkı beğenilmemiş.',
-              style: TextStyle(color: Colors.grey),
+              style: textTheme.bodyLarge
+                  ?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
             ),
           );
         }
@@ -247,26 +287,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildPlaylistList() {
+  Widget _buildPlaylistList(ColorScheme colorScheme, TextTheme textTheme) {
     if (_user == null) return const SizedBox.shrink();
 
     return StreamBuilder<List<Playlist>>(
       stream: _firebaseService.getUserPlaylists(_user!.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+          return Center(
+              child: CircularProgressIndicator(
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(colorScheme.primary)));
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Hata: ${snapshot.error}'));
+          return Center(
+              child: Text('Hata: ${snapshot.error}',
+                  style:
+                      textTheme.bodyLarge?.copyWith(color: colorScheme.error)));
         }
 
         final playlists = snapshot.data ?? [];
 
         if (playlists.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
               'Henüz bir çalma listeniz yok.',
-              style: TextStyle(color: Colors.grey),
+              style: textTheme.bodyLarge
+                  ?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
             ),
           );
         }
@@ -279,6 +326,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               elevation: 2,
+              color: colorScheme.surface,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
               child: ListTile(
@@ -292,31 +340,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           height: 60,
                           fit: BoxFit.cover,
                           placeholder: (context, url) => Container(
-                              width: 60, height: 60, color: Colors.grey[300]),
+                            width: 60,
+                            height: 60,
+                            color: colorScheme.surface.withOpacity(0.5),
+                            child: Icon(Icons.music_note,
+                                size: 30,
+                                color: colorScheme.onSurface.withOpacity(0.7)),
+                          ),
                           errorWidget: (context, url, error) => Container(
-                              width: 60,
-                              height: 60,
-                              color: Colors.grey[400],
-                              child: const Icon(Icons.broken_image, size: 30)),
+                            width: 60,
+                            height: 60,
+                            color: colorScheme.surface.withOpacity(0.7),
+                            child: Icon(Icons.broken_image,
+                                size: 30,
+                                color: colorScheme.onSurface.withOpacity(0.7)),
+                          ),
                         )
                       : Container(
                           width: 60,
                           height: 60,
-                          color: Colors.grey[400],
-                          child: const Icon(Icons.music_note,
-                              size: 30, color: Colors.white70),
+                          color: colorScheme.surface.withOpacity(0.7),
+                          child: Icon(Icons.music_note,
+                              size: 30,
+                              color: colorScheme.onSurface.withOpacity(0.7)),
                         ),
                 ),
                 title: Text(playlist.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                    style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface)),
                 subtitle: Text('${playlist.trackIds.length} şarkı',
-                    style: TextStyle(color: Colors.grey[600])),
-                trailing: const Icon(Icons.chevron_right),
+                    style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.7))),
+                trailing: Icon(Icons.chevron_right,
+                    color: colorScheme.onSurface.withOpacity(0.6)),
                 onTap: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) =>
+                    PageRouteBuilder(
+                      pageBuilder: (context, animation1, animation2) =>
                           PlaylistDetailScreen(playlist: playlist),
+                      transitionDuration: Duration.zero,
+                      transitionsBuilder:
+                          (context, animation1, animation2, child) {
+                        return child;
+                      },
                     ),
                   );
                 },
@@ -342,8 +409,9 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
+      color: colorScheme.background,
       child: tabBar,
     );
   }

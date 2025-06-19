@@ -27,9 +27,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ana Sayfa'),
+        title: Text(
+          'Ana Sayfa',
+          style: textTheme.titleLarge?.copyWith(
+            color: colorScheme.onSurface,
+          ),
+        ),
+        backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: const [],
       ),
@@ -40,11 +49,22 @@ class _HomeScreenState extends State<HomeScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+              ),
+            );
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('Hiç şarkı yok.'));
+            return Center(
+              child: Text(
+                'Hiç şarkı yok.',
+                style: textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onBackground,
+                ),
+              ),
+            );
           }
 
           final tracks = snapshot.data!.docs.map((doc) {
@@ -72,11 +92,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
           return ListView(
             children: [
-              const Padding(
-                padding: EdgeInsets.all(16.0),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Text(
                   'Tüm Şarkılar',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  style: textTheme.headlineSmall?.copyWith(
+                      color: colorScheme.onBackground,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
               ListView.builder(

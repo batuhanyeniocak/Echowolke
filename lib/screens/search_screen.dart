@@ -96,11 +96,20 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return DefaultTabController(
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Keşfet'),
+          title: Text(
+            'Keşfet',
+            style: textTheme.titleLarge?.copyWith(
+              color: colorScheme.onSurface,
+            ),
+          ),
+          backgroundColor: colorScheme.surface,
           elevation: 0,
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(kToolbarHeight),
@@ -109,15 +118,20 @@ class _SearchScreenState extends State<SearchScreen> {
                   const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: TextField(
                 controller: _searchController,
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   hintText: 'Şarkı, sanatçı veya çalma listesi ara',
-                  prefixIcon: const Icon(Icons.search),
+                  hintStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.6)),
+                  prefixIcon: Icon(Icons.search,
+                      color: colorScheme.onSurface.withOpacity(0.8)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(50),
                     borderSide: BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: Colors.grey[200],
+                  fillColor: colorScheme.surface,
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -126,19 +140,33 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         body: Column(
           children: [
-            const TabBar(
-              tabs: [
+            TabBar(
+              tabs: const [
                 Tab(text: 'Parçalar'),
                 Tab(text: 'Profiller'),
                 Tab(text: 'Listeler'),
               ],
+              labelColor: colorScheme.primary,
+              unselectedLabelColor: colorScheme.onSurface.withOpacity(0.6),
+              indicatorColor: colorScheme.primary,
+              labelStyle:
+                  textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+              unselectedLabelStyle: textTheme.labelLarge,
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(
+                      child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              colorScheme.primary)))
                   : !_hasSearched
-                      ? const Center(
-                          child: Text('Aramak için yazmaya başlayın.'))
+                      ? Center(
+                          child: Text(
+                            'Aramak için yazmaya başlayın.',
+                            style: textTheme.bodyLarge
+                                ?.copyWith(color: colorScheme.onBackground),
+                          ),
+                        )
                       : TabBarView(
                           children: [
                             _buildResultsList(_trackResults, context),
@@ -154,8 +182,15 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildResultsList(List<dynamic> results, BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     if (results.isEmpty) {
-      return const Center(child: Text('Sonuç bulunamadı.'));
+      return Center(
+          child: Text(
+        'Sonuç bulunamadı.',
+        style: textTheme.bodyLarge?.copyWith(color: colorScheme.onBackground),
+      ));
     }
 
     return ListView.builder(
@@ -177,17 +212,24 @@ class _SearchScreenState extends State<SearchScreen> {
 
         if (item is Map<String, dynamic>) {
           return ListTile(
+            tileColor: colorScheme.background,
             leading: CircleAvatar(
+              backgroundColor: colorScheme.surface.withOpacity(0.5),
               backgroundImage: item['profileImageUrl'] != null &&
                       item['profileImageUrl'].isNotEmpty
                   ? CachedNetworkImageProvider(item['profileImageUrl'])
                   : null,
               child: item['profileImageUrl'] == null ||
                       item['profileImageUrl'].isEmpty
-                  ? const Icon(Icons.person)
+                  ? Icon(Icons.person,
+                      color: colorScheme.onSurface.withOpacity(0.8))
                   : null,
             ),
-            title: Text(item['username'] ?? 'Bilinmeyen Kullanıcı'),
+            title: Text(
+              item['username'] ?? 'Bilinmeyen Kullanıcı',
+              style:
+                  textTheme.titleMedium?.copyWith(color: colorScheme.onSurface),
+            ),
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
                 builder: (context) => PublicProfileScreen(userId: item['uid']),
@@ -197,6 +239,7 @@ class _SearchScreenState extends State<SearchScreen> {
         }
         if (item is Playlist) {
           return ListTile(
+            tileColor: colorScheme.background,
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(4.0),
               child: item.imageUrl.isNotEmpty
@@ -208,11 +251,20 @@ class _SearchScreenState extends State<SearchScreen> {
                   : Container(
                       width: 50,
                       height: 50,
-                      color: Colors.grey,
-                      child: const Icon(Icons.music_note, color: Colors.white)),
+                      color: colorScheme.surface.withOpacity(0.7),
+                      child:
+                          Icon(Icons.music_note, color: colorScheme.onSurface)),
             ),
-            title: Text(item.name),
-            subtitle: Text('${item.trackIds.length} şarkı'),
+            title: Text(
+              item.name,
+              style:
+                  textTheme.titleMedium?.copyWith(color: colorScheme.onSurface),
+            ),
+            subtitle: Text(
+              '${item.trackIds.length} şarkı',
+              style: textTheme.bodySmall
+                  ?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
+            ),
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
                 builder: (context) =>

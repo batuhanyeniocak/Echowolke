@@ -9,12 +9,14 @@ class TrackTile extends StatefulWidget {
   final Track track;
   final String formattedDuration;
   final VoidCallback? onTap;
+  final Widget? trailingWidget;
 
   const TrackTile({
     Key? key,
     required this.track,
     this.formattedDuration = '00:00',
     this.onTap,
+    this.trailingWidget,
   }) : super(key: key);
 
   @override
@@ -137,7 +139,7 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Hata: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -154,25 +156,26 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
       child: AnimatedBuilder(
         animation: _playingAnimation,
         builder: (context, child) {
+          final ColorScheme colorScheme = Theme.of(context).colorScheme;
           return Transform.scale(
             scale: _playingAnimation.value,
             child: Container(
               width: 16,
               height: 16,
               decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
+                color: colorScheme.primary,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Theme.of(context).primaryColor.withOpacity(0.3),
+                    color: colorScheme.primary.withOpacity(0.3),
                     blurRadius: 4,
                     spreadRadius: 1,
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.volume_up,
-                color: Colors.white,
+                color: colorScheme.onPrimary,
                 size: 10,
               ),
             ),
@@ -184,17 +187,20 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: isCurrentTrack
-            ? Theme.of(context).primaryColor.withOpacity(0.08)
+            ? colorScheme.primary.withOpacity(0.08)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: isCurrentTrack
             ? Border.all(
-                color: Theme.of(context).primaryColor.withOpacity(0.3),
+                color: colorScheme.primary.withOpacity(0.3),
                 width: 1,
               )
             : null,
@@ -212,8 +218,7 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
                   boxShadow: isCurrentTrack
                       ? [
                           BoxShadow(
-                            color:
-                                Theme.of(context).primaryColor.withOpacity(0.2),
+                            color: colorScheme.primary.withOpacity(0.2),
                             blurRadius: 8,
                             spreadRadius: 1,
                           ),
@@ -228,10 +233,12 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
                   placeholder: (context, url) => Container(
                     width: 56,
                     height: 56,
-                    color: Colors.grey[300],
-                    child: const Center(
+                    color: colorScheme.surface.withOpacity(0.5),
+                    child: Center(
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(colorScheme.primary),
                       ),
                     ),
                   ),
@@ -240,12 +247,12 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: Colors.grey[400],
+                        color: colorScheme.surface.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(8.0),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.music_note,
-                        color: Colors.white,
+                        color: colorScheme.onSurface,
                         size: 24,
                       ),
                     );
@@ -260,9 +267,9 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
           widget.track.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
+          style: textTheme.titleMedium?.copyWith(
             fontWeight: isCurrentTrack ? FontWeight.w600 : FontWeight.w500,
-            color: isCurrentTrack ? Theme.of(context).primaryColor : null,
+            color: isCurrentTrack ? colorScheme.primary : colorScheme.onSurface,
           ),
         ),
         subtitle: Column(
@@ -273,10 +280,10 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
               widget.track.artist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: textTheme.bodySmall?.copyWith(
                 color: isCurrentTrack
-                    ? Theme.of(context).primaryColor.withOpacity(0.8)
-                    : Colors.grey[600],
+                    ? colorScheme.primary.withOpacity(0.8)
+                    : colorScheme.onSurface.withOpacity(0.7),
                 fontWeight:
                     isCurrentTrack ? FontWeight.w500 : FontWeight.normal,
               ),
@@ -287,57 +294,58 @@ class _TrackTileState extends State<TrackTile> with TickerProviderStateMixin {
                 Icon(
                   Icons.access_time,
                   size: 12,
-                  color: Colors.grey[500],
+                  color: colorScheme.onSurface.withOpacity(0.5),
                 ),
                 const SizedBox(width: 4),
                 Text(
                   widget.formattedDuration,
-                  style: TextStyle(
+                  style: textTheme.bodySmall?.copyWith(
                     fontSize: 12,
-                    color: Colors.grey[500],
+                    color: colorScheme.onSurface.withOpacity(0.5),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Icon(
                   Icons.play_circle_outline,
                   size: 12,
-                  color: Colors.grey[500],
+                  color: colorScheme.onSurface.withOpacity(0.5),
                 ),
                 const SizedBox(width: 4),
                 Text(
                   _formatPlayCount(widget.track.playCount),
-                  style: TextStyle(
+                  style: textTheme.bodySmall?.copyWith(
                     fontSize: 12,
-                    color: Colors.grey[500],
+                    color: colorScheme.onSurface.withOpacity(0.5),
                   ),
                 ),
               ],
             ),
           ],
         ),
-        trailing: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isCurrentTrack
-                ? Theme.of(context).primaryColor.withOpacity(0.1)
-                : null,
-          ),
-          child: IconButton(
-            icon: AnimatedSwitcher(
+        trailing: widget.trailingWidget ??
+            AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              child: Icon(
-                isPlaying ? Icons.pause : Icons.play_arrow,
-                key: ValueKey(isPlaying),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
                 color: isCurrentTrack
-                    ? Theme.of(context).primaryColor
-                    : Colors.grey[600],
-                size: 28,
+                    ? colorScheme.primary.withOpacity(0.1)
+                    : Colors.transparent,
+              ),
+              child: IconButton(
+                icon: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    isPlaying ? Icons.pause : Icons.play_arrow,
+                    key: ValueKey(isPlaying),
+                    color: isCurrentTrack
+                        ? colorScheme.primary
+                        : colorScheme.onSurface.withOpacity(0.6),
+                    size: 28,
+                  ),
+                ),
+                onPressed: _handlePlayPause,
               ),
             ),
-            onPressed: _handlePlayPause,
-          ),
-        ),
         onTap: widget.onTap,
       ),
     );

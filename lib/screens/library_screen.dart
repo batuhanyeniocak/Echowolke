@@ -9,6 +9,7 @@ import 'liked_songs_screen.dart';
 import 'playlists_screen.dart';
 import 'profile_screen.dart';
 import 'edit_profile_screen.dart';
+import 'package:flutter_app/main.dart';
 
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({Key? key}) : super(key: key);
@@ -18,12 +19,23 @@ class LibraryScreen extends StatelessWidget {
     final firebaseService =
         Provider.of<FirebaseService>(context, listen: false);
     final User? currentUser = FirebaseAuth.instance.currentUser;
+    final themeNotifier = Provider.of<ThemeNotifier>(context, listen: false);
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
 
     if (currentUser == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Kütüphane')),
-        body: const Center(
-          child: Text('İçeriği görmek için lütfen giriş yapın.'),
+        appBar: AppBar(
+          title: Text('Kütüphane',
+              style:
+                  textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
+          backgroundColor: colorScheme.surface,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Text('İçeriği görmek için lütfen giriş yapın.',
+              style: textTheme.bodyLarge
+                  ?.copyWith(color: colorScheme.onBackground)),
         ),
       );
     }
@@ -36,8 +48,11 @@ class LibraryScreen extends StatelessWidget {
       builder: (context, snapshot) {
         if (!snapshot.hasData &&
             snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            body: Center(
+                child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+            )),
           );
         }
 
@@ -47,40 +62,82 @@ class LibraryScreen extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Kütüphane'),
-            backgroundColor: Colors.orange,
+            title: Text('Kütüphane',
+                style: textTheme.titleLarge
+                    ?.copyWith(color: colorScheme.onSurface)),
+            backgroundColor: colorScheme.surface,
             elevation: 0,
           ),
           body: ListView(
             children: [
               _buildProfileTile(context, username, profileImageUrl),
-              const Divider(height: 1),
+              Divider(height: 1, color: colorScheme.onSurface.withOpacity(0.1)),
               ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Profili Düzenle'),
-                trailing: const Icon(Icons.chevron_right),
+                leading: Icon(Icons.edit_outlined,
+                    color: colorScheme.onSurface.withOpacity(0.8)),
+                title: Text('Profili Düzenle',
+                    style: textTheme.titleMedium
+                        ?.copyWith(color: colorScheme.onSurface)),
+                trailing: Icon(Icons.chevron_right,
+                    color: colorScheme.onSurface.withOpacity(0.6)),
                 onTap: () =>
                     _navigateToPage(context, const EditProfileScreen()),
               ),
               ListTile(
-                leading: const Icon(Icons.favorite_border),
-                title: const Text('Beğendiklerim'),
-                trailing: const Icon(Icons.chevron_right),
+                leading: Icon(Icons.favorite_border,
+                    color: colorScheme.onSurface.withOpacity(0.8)),
+                title: Text('Beğendiklerim',
+                    style: textTheme.titleMedium
+                        ?.copyWith(color: colorScheme.onSurface)),
+                trailing: Icon(Icons.chevron_right,
+                    color: colorScheme.onSurface.withOpacity(0.6)),
                 onTap: () => _navigateToPage(context, const LikedSongsScreen()),
               ),
               ListTile(
-                leading: const Icon(Icons.playlist_play_outlined),
-                title: const Text('Çalma Listelerim'),
-                trailing: const Icon(Icons.chevron_right),
+                leading: Icon(Icons.playlist_play_outlined,
+                    color: colorScheme.onSurface.withOpacity(0.8)),
+                title: Text('Çalma Listelerim',
+                    style: textTheme.titleMedium
+                        ?.copyWith(color: colorScheme.onSurface)),
+                trailing: Icon(Icons.chevron_right,
+                    color: colorScheme.onSurface.withOpacity(0.6)),
                 onTap: () => _navigateToPage(context, const PlaylistsScreen()),
               ),
               ListTile(
-                leading: const Icon(Icons.library_add_outlined),
-                title: const Text('Şarkı Ekle'),
-                trailing: const Icon(Icons.chevron_right),
+                leading: Icon(Icons.library_add_outlined,
+                    color: colorScheme.onSurface.withOpacity(0.8)),
+                title: Text('Şarkı Ekle',
+                    style: textTheme.titleMedium
+                        ?.copyWith(color: colorScheme.onSurface)),
+                trailing: Icon(Icons.chevron_right,
+                    color: colorScheme.onSurface.withOpacity(0.6)),
                 onTap: () => _navigateToPage(context, const AddSongScreen()),
               ),
-              const Divider(),
+              ListTile(
+                leading: Icon(
+                  Theme.of(context).brightness == Brightness.light
+                      ? Icons.light_mode
+                      : Icons.dark_mode,
+                  color: colorScheme.onSurface.withOpacity(0.8),
+                ),
+                title: Text(
+                  Theme.of(context).brightness == Brightness.light
+                      ? 'Gece Moduna Geç'
+                      : 'Gündüz Moduna Geç',
+                  style: textTheme.titleMedium
+                      ?.copyWith(color: colorScheme.onSurface),
+                ),
+                trailing: Switch(
+                  value: Theme.of(context).brightness == Brightness.dark,
+                  onChanged: (value) {
+                    themeNotifier.toggleTheme();
+                  },
+                  activeColor: colorScheme.primary,
+                  inactiveThumbColor: colorScheme.onSurface.withOpacity(0.4),
+                  inactiveTrackColor: colorScheme.onSurface.withOpacity(0.2),
+                ),
+              ),
+              Divider(color: colorScheme.onSurface.withOpacity(0.1)),
               Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16.0, vertical: 10.0),
@@ -89,22 +146,23 @@ class LibraryScreen extends StatelessWidget {
                     try {
                       await firebaseService.signOut();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Başarıyla çıkış yapıldı.')),
+                        SnackBar(
+                            content: Text('Başarıyla çıkış yapıldı.'),
+                            backgroundColor: colorScheme.onBackground),
                       );
                     } catch (e) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                             content: Text('Çıkış yapılırken hata oluştu: $e'),
-                            backgroundColor: Colors.red),
+                            backgroundColor: colorScheme.error),
                       );
                     }
                   },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Çıkış Yap'),
+                  icon: Icon(Icons.logout, color: colorScheme.onError),
+                  label: Text('Çıkış Yap', style: textTheme.labelLarge),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
+                    backgroundColor: colorScheme.error,
+                    foregroundColor: colorScheme.onError,
                     minimumSize: const Size.fromHeight(50),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -123,6 +181,8 @@ class LibraryScreen extends StatelessWidget {
   Widget _buildProfileTile(
       BuildContext context, String? username, String? imageUrl) {
     final displayName = username ?? "Profil";
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
 
     return ListTile(
       contentPadding:
@@ -130,20 +190,29 @@ class LibraryScreen extends StatelessWidget {
       onTap: () => _navigateToPage(context, const ProfileScreen()),
       leading: CircleAvatar(
         radius: 28,
-        backgroundColor: Colors.grey.shade300,
+        backgroundColor: colorScheme.surface.withOpacity(0.5),
         backgroundImage: (imageUrl != null && imageUrl.isNotEmpty)
             ? CachedNetworkImageProvider(imageUrl)
             : null,
         child: (imageUrl == null || imageUrl.isEmpty)
-            ? const Icon(Icons.person, size: 30, color: Colors.white)
+            ? Icon(Icons.person,
+                size: 30, color: colorScheme.onSurface.withOpacity(0.7))
             : null,
       ),
       title: Text(
         displayName,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        style: textTheme.titleMedium?.copyWith(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface),
       ),
-      subtitle: const Text('Profili görüntüle'),
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+      subtitle: Text(
+        'Profili görüntüle',
+        style: textTheme.bodyMedium
+            ?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
+      ),
+      trailing: Icon(Icons.chevron_right,
+          color: colorScheme.onSurface.withOpacity(0.6)),
     );
   }
 

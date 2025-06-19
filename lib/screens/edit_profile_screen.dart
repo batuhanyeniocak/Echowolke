@@ -6,12 +6,13 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'auth_screen.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({Key? key}) : super(key: key);
 
   @override
-  _EditProfileScreenState createState() => _EditProfileScreenState();
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
@@ -27,6 +28,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   String? _profileImageUrl;
   File? _profileImageFile;
+  Uint8List? _profileImageBytes;
   String _initialUsername = '';
 
   bool _isLoading = false;
@@ -50,7 +52,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _loadUserData() async {
     if (_currentUser == null) {
-      setState(() => _isFetchingData = false);
+      if (mounted) setState(() => _isFetchingData = false);
       return;
     }
     try {
@@ -62,9 +64,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         final data = userDoc.data()!;
         _initialUsername = data['username'] ?? '';
         _usernameController.text = _initialUsername;
-        setState(() {
-          _profileImageUrl = data['profileImageUrl'];
-        });
+        if (mounted) {
+          setState(() {
+            _profileImageUrl = data['profileImageUrl'];
+          });
+        }
       }
     } catch (e) {
       _showSnackBar("Kullanıcı verileri yüklenemedi: $e", isError: true);
@@ -75,23 +79,50 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _pickImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.image);
-      if (result != null && result.files.single.path != null) {
-        setState(() {
-          _profileImageFile = File(result.files.single.path!);
-        });
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: kIsWeb,
+        withReadStream: !kIsWeb,
+      );
+
+      if (result != null) {
+        if (mounted) {
+          setState(() {
+            if (kIsWeb) {
+              _profileImageBytes = result.files.single.bytes;
+              _profileImageFile = null;
+            } else {
+              if (result.files.single.path != null) {
+                _profileImageFile = File(result.files.single.path!);
+                _profileImageBytes = null;
+              }
+            }
+            _profileImageUrl = null;
+          });
+        }
       }
     } catch (e) {
       _showSnackBar("Resim seçilemedi: $e", isError: true);
     }
   }
 
-  Future<String?> _uploadFile(File? file, String path) async {
-    if (file == null) return null;
+  Future<String?> _uploadFile(dynamic fileData, String path) async {
+    if (fileData == null) return null;
     try {
       final ref = FirebaseStorage.instance.ref(path);
-      await ref.putFile(file);
-      return await ref.getDownloadURL();
+      UploadTask uploadTask;
+
+      if (kIsWeb) {
+        uploadTask = ref.putData(fileData as Uint8List);
+      } else {
+        uploadTask = ref.putFile(fileData as File);
+      }
+
+      await uploadTask;
+      final downloadUrl = await ref.getDownloadURL();
+      print("DEBUG: Resim yüklendi, URL: $downloadUrl");
+      return downloadUrl;
     } catch (e) {
       _showSnackBar("Dosya yüklenemedi: $e", isError: true);
       return null;
@@ -102,7 +133,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_currentUser == null) return;
 
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
     final String newUsername = _usernameController.text.trim().toLowerCase();
     final String newEmail = _emailController.text.trim();
     final String newPassword = _newPasswordController.text.trim();
@@ -129,8 +160,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         await _currentUser!.reauthenticateWithCredential(cred);
       }
 
-      String? newProfileImageUrl = await _uploadFile(
-          _profileImageFile, 'profile_images/${_currentUser!.uid}');
+      String? newProfileImageUrl;
+      if (kIsWeb) {
+        if (_profileImageBytes != null && _profileImageBytes!.isNotEmpty) {
+          newProfileImageUrl = await _uploadFile(
+              _profileImageBytes, 'profile_images/${_currentUser!.uid}');
+        }
+      } else {
+        if (_profileImageFile != null) {
+          newProfileImageUrl = await _uploadFile(
+              _profileImageFile, 'profile_images/${_currentUser!.uid}');
+        }
+      }
+
       Map<String, dynamic> dataToUpdate = {'username': newUsername};
       if (newProfileImageUrl != null) {
         dataToUpdate['profileImageUrl'] = newProfileImageUrl;
@@ -166,7 +208,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _deleteAccount(String currentPassword) async {
     if (_currentUser == null) return;
 
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
 
     try {
       final cred = EmailAuthProvider.credential(
@@ -190,7 +232,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _showSnackBar("Hesabınız kalıcı olarak silindi.", isError: false);
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const Text("Giriş Ekranı")),
+          MaterialPageRoute(builder: (context) => const AuthScreen()),
           (Route<dynamic> route) => false,
         );
       }
@@ -219,7 +261,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        backgroundColor: isError
+            ? Theme.of(context).colorScheme.error
+            : Theme.of(context).colorScheme.onBackground,
       ),
     );
   }
@@ -229,20 +273,49 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     showDialog(
       context: context,
       builder: (context) {
+        final ColorScheme colorScheme = Theme.of(context).colorScheme;
+        final TextTheme textTheme = Theme.of(context).textTheme;
+
         return AlertDialog(
-          title: const Text("Hesabı Silmeyi Onayla"),
+          backgroundColor: colorScheme.surface,
+          title: Text("Hesabı Silmeyi Onayla",
+              style:
+                  textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                  "Bu işlem geri alınamaz. Devam etmek için lütfen mevcut şifrenizi girin."),
+              Text(
+                "Bu işlem geri alınamaz. Devam etmek için lütfen mevcut şifrenizi girin.",
+                style: textTheme.bodyMedium
+                    ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: passwordController,
                 obscureText: true,
-                decoration: const InputDecoration(
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: "Mevcut Şifre",
-                  border: OutlineInputBorder(),
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  fillColor: colorScheme.background,
+                  filled: true,
                 ),
               ),
             ],
@@ -250,7 +323,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text("İptal"),
+              style: TextButton.styleFrom(foregroundColor: colorScheme.primary),
+              child: Text("İptal",
+                  style: textTheme.labelLarge
+                      ?.copyWith(color: colorScheme.primary)),
             ),
             TextButton(
               onPressed: () {
@@ -260,8 +336,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   _deleteAccount(password);
                 }
               },
-              child:
-                  const Text("Hesabı Sil", style: TextStyle(color: Colors.red)),
+              style: TextButton.styleFrom(foregroundColor: colorScheme.error),
+              child: Text("Hesabı Sil",
+                  style:
+                      textTheme.labelLarge?.copyWith(color: colorScheme.error)),
             ),
           ],
         );
@@ -271,18 +349,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Profili Düzenle"),
+        title: Text("Profili Düzenle",
+            style:
+                textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
+        backgroundColor: colorScheme.surface,
         actions: [
           IconButton(
-            icon: const Icon(Icons.save),
+            icon: Icon(Icons.save, color: colorScheme.onSurface),
             onPressed: _isLoading ? null : _saveProfile,
           ),
         ],
       ),
       body: _isFetchingData
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(colorScheme.primary)))
           : Form(
               key: _formKey,
               child: ListView(
@@ -296,15 +383,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   _buildDeleteSection(),
                   const SizedBox(height: 32),
                   if (_isLoading)
-                    const Center(child: CircularProgressIndicator())
+                    Center(
+                        child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                colorScheme.primary)))
                   else
                     ElevatedButton.icon(
                       onPressed: _saveProfile,
-                      icon: const Icon(Icons.save_alt_outlined),
-                      label: const Text("Değişiklikleri Kaydet"),
+                      icon: Icon(Icons.save_alt_outlined,
+                          color: colorScheme.onPrimary),
+                      label: Text("Değişiklikleri Kaydet",
+                          style: textTheme.labelLarge),
                       style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        textStyle: const TextStyle(
+                        textStyle: textTheme.labelLarge?.copyWith(
                             fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -315,21 +409,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildProfileImagePicker() {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return Center(
       child: Stack(
         children: [
           CircleAvatar(
             radius: 64,
-            backgroundColor: Colors.grey.shade300,
+            backgroundColor: colorScheme.surface.withOpacity(0.5),
             backgroundImage: _profileImageFile != null
-                ? FileImage(_profileImageFile!)
-                : (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
-                    ? CachedNetworkImageProvider(_profileImageUrl!)
-                        as ImageProvider
-                    : null,
+                ? FileImage(_profileImageFile!) as ImageProvider<Object>
+                : (_profileImageBytes != null && _profileImageBytes!.isNotEmpty)
+                    ? MemoryImage(_profileImageBytes!) as ImageProvider<Object>
+                    : (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
+                        ? CachedNetworkImageProvider(_profileImageUrl!)
+                            as ImageProvider<Object>
+                        : null,
             child: (_profileImageUrl == null || _profileImageUrl!.isEmpty) &&
-                    _profileImageFile == null
-                ? Icon(Icons.person, size: 60, color: Colors.grey.shade500)
+                    _profileImageFile == null &&
+                    _profileImageBytes == null
+                ? Icon(Icons.person,
+                    size: 60, color: colorScheme.onSurface.withOpacity(0.7))
                 : null,
           ),
           Positioned(
@@ -337,10 +438,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             right: 0,
             child: InkWell(
               onTap: _pickImage,
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 20,
-                backgroundColor: Colors.blue,
-                child: Icon(Icons.edit, color: Colors.white, size: 22),
+                backgroundColor: colorScheme.primary,
+                child: Icon(Icons.edit, color: colorScheme.onPrimary, size: 22),
               ),
             ),
           ),
@@ -350,12 +451,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildSecuritySection() {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return ExpansionTile(
       initiallyExpanded: false,
-      title: const Text("Hesap Güvenliği",
-          style: TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: const Text("Kullanıcı adı, e-posta ve şifre"),
-      leading: const Icon(Icons.security_outlined),
+      title: Text("Hesap Güvenliği",
+          style: textTheme.titleMedium?.copyWith(
+              color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
+      subtitle: Text("Kullanıcı adı, e-posta ve şifre",
+          style: textTheme.bodyMedium
+              ?.copyWith(color: colorScheme.onSurface.withOpacity(0.7))),
+      leading: Icon(Icons.security_outlined,
+          color: colorScheme.onSurface.withOpacity(0.8)),
       children: [
         Padding(
           padding: const EdgeInsets.only(
@@ -365,54 +473,144 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             children: [
               TextFormField(
                 controller: _usernameController,
-                decoration: const InputDecoration(
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: "Kullanıcı Adı",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person_outline),
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  fillColor: colorScheme.background,
+                  filled: true,
                 ),
                 validator: (value) => (value == null || value.trim().length < 4)
                     ? "Kullanıcı adı en az 4 karakter olmalı."
                     : null,
               ),
               const SizedBox(height: 20),
-              const Divider(),
+              Divider(color: colorScheme.onSurface.withOpacity(0.3)),
               const SizedBox(height: 10),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.email_outlined, color: Colors.grey),
-                title: const Text("Mevcut E-posta"),
-                subtitle: Text(_censorEmail(_currentUser?.email)),
+                leading: Icon(Icons.email_outlined,
+                    color: colorScheme.onSurface.withOpacity(0.8)),
+                title: Text("Mevcut E-posta",
+                    style: textTheme.titleMedium
+                        ?.copyWith(color: colorScheme.onSurface)),
+                subtitle: Text(_censorEmail(_currentUser?.email),
+                    style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.7))),
               ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: "Yeni E-posta Adresi",
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
                   hintText: "Değiştirmek istemiyorsanız boş bırakın",
-                  border: OutlineInputBorder(),
+                  hintStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.5)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  fillColor: colorScheme.background,
+                  filled: true,
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 20),
-              const Divider(),
+              Divider(color: colorScheme.onSurface.withOpacity(0.3)),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _currentPasswordController,
-                decoration: const InputDecoration(
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: "Mevcut Şifre",
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
                   hintText: "Değişiklik yapmak için doldurun",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_open_outlined),
+                  hintStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.5)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.lock_open_outlined,
+                      color: colorScheme.onSurface.withOpacity(0.8)),
+                  fillColor: colorScheme.background,
+                  filled: true,
                 ),
                 obscureText: true,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _newPasswordController,
-                decoration: const InputDecoration(
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: "Yeni Şifre",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outline),
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.lock_outline,
+                      color: colorScheme.onSurface.withOpacity(0.8)),
+                  fillColor: colorScheme.background,
+                  filled: true,
                 ),
                 obscureText: true,
                 validator: (value) {
@@ -425,10 +623,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _confirmPasswordController,
-                decoration: const InputDecoration(
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: "Yeni Şifre (Tekrar)",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outline),
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.lock_outline,
+                      color: colorScheme.onSurface.withOpacity(0.8)),
+                  fillColor: colorScheme.background,
+                  filled: true,
                 ),
                 obscureText: true,
                 validator: (value) {
@@ -447,30 +666,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildDeleteSection() {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return ExpansionTile(
-      title: const Text("Hesabı Sil",
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-      subtitle: const Text("Bu işlem geri alınamaz"),
-      leading: const Icon(Icons.delete_forever_outlined, color: Colors.red),
+      title: Text("Hesabı Sil",
+          style: textTheme.titleMedium?.copyWith(
+              color: colorScheme.error, fontWeight: FontWeight.bold)),
+      subtitle: Text("Bu işlem geri alınamaz",
+          style: textTheme.bodyMedium
+              ?.copyWith(color: colorScheme.onSurface.withOpacity(0.7))),
+      leading: Icon(Icons.delete_forever_outlined, color: colorScheme.error),
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 "Hesabınızı silmek, tüm profil bilgilerinizi, beğenilerinizi ve çalma listelerinizi kalıcı olarak ortadan kaldıracaktır. Bu işlemi onaylıyorsanız, lütfen aşağıdaki butona tıklayın.",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.black54),
+                style: textTheme.bodyMedium
+                    ?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: _showDeleteConfirmationDialog,
-                icon: const Icon(Icons.warning_amber_rounded),
-                label: const Text("Hesabımı Kalıcı Olarak Sil"),
+                icon: Icon(Icons.warning_amber_rounded,
+                    color: colorScheme.onError),
+                label: Text("Hesabımı Kalıcı Olarak Sil",
+                    style: textTheme.labelLarge),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
+                  backgroundColor: colorScheme.error,
+                  foregroundColor: colorScheme.onError,
                 ),
               ),
             ],

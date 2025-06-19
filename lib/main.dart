@@ -20,6 +20,43 @@ import 'screens/create_playlist_screen.dart';
 import 'screens/playlist_detail_screen.dart';
 import 'models/playlist.dart';
 import 'screens/splash_screen.dart';
+import 'package:flutter_app/theme/app_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class ThemeNotifier extends ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  ThemeNotifier() {
+    _loadThemeFromPrefs();
+  }
+
+  ThemeMode get themeMode => _themeMode;
+
+  void toggleTheme() {
+    _themeMode =
+        _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    _saveThemeToPrefs(_themeMode);
+    notifyListeners();
+  }
+
+  void _loadThemeFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? theme = prefs.getString('themeMode');
+    if (theme == 'dark') {
+      _themeMode = ThemeMode.dark;
+    } else if (theme == 'light') {
+      _themeMode = ThemeMode.light;
+    } else {
+      _themeMode = ThemeMode.system;
+    }
+    notifyListeners();
+  }
+
+  void _saveThemeToPrefs(ThemeMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('themeMode', mode.toString().split('.').last);
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,13 +77,20 @@ void main() async {
   await audioPlayerService.init();
 
   runApp(
-    Provider<FirebaseService>(
-      create: (context) => firebaseService,
-      child: Provider<AudioPlayerService>(
-        create: (context) => audioPlayerService,
-        dispose: (context, service) => service.dispose(),
-        child: const MyApp(),
-      ),
+    MultiProvider(
+      providers: [
+        Provider<FirebaseService>(
+          create: (context) => firebaseService,
+        ),
+        Provider<AudioPlayerService>(
+          create: (context) => audioPlayerService,
+          dispose: (context, service) => service.dispose(),
+        ),
+        ChangeNotifierProvider<ThemeNotifier>(
+          create: (_) => ThemeNotifier(),
+        ),
+      ],
+      child: const MyApp(),
     ),
   );
 }
@@ -56,13 +100,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeNotifier = Provider.of<ThemeNotifier>(context);
+
     return MaterialApp(
       title: 'Echowolke',
-      theme: ThemeData(
-        primarySwatch: Colors.orange,
-        scaffoldBackgroundColor: Colors.grey[50],
-        fontFamily: 'Roboto',
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeNotifier.themeMode,
       home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
@@ -78,9 +122,13 @@ class AuthWrapperScreen extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
+          return Scaffold(
             body: Center(
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary,
+                ),
+              ),
             ),
           );
         }

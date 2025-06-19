@@ -28,6 +28,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _isLiked = false;
   bool _isShuffleEnabled = false;
   LoopMode _loopMode = LoopMode.off;
+  double _currentVolume = 1.0;
 
   late Track _activeTrack;
   String? _currentUserId;
@@ -39,6 +40,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   late StreamSubscription _authSubscription;
   late StreamSubscription _loopModeSubscription;
   late StreamSubscription _shuffleModeSubscription;
+  late StreamSubscription _volumeSubscription;
 
   late AnimationController _rotationController;
   late AnimationController _scaleController;
@@ -87,6 +89,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _currentPosition = _audioPlayerService.audioPlayer.position;
       _totalDuration =
           _audioPlayerService.audioPlayer.duration ?? Duration.zero;
+      _currentVolume = _audioPlayerService.audioPlayer.volume;
     });
 
     _updateAnimations();
@@ -111,9 +114,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _toggleLikeStatus() async {
     if (_currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
             content: Text('Şarkı beğenmek için giriş yapmalısınız.'),
-            backgroundColor: Colors.red),
+            backgroundColor: Theme.of(context).colorScheme.error),
       );
       return;
     }
@@ -130,7 +133,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content:
-                  Text('${_activeTrack.title} beğenilenlerden kaldırıldı.')),
+                  Text('${_activeTrack.title} beğenilenlerden kaldırıldı.'),
+              backgroundColor: Theme.of(context).colorScheme.onBackground),
         );
       } else {
         await _firebaseService.addLikedSong(_currentUserId!, _activeTrack);
@@ -141,14 +145,15 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('${_activeTrack.title} beğenilenlere eklendi.')),
+              content: Text('${_activeTrack.title} beğenilenlere eklendi.'),
+              backgroundColor: Theme.of(context).colorScheme.onBackground),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text('Beğenme durumu güncellenirken hata oluştu: $e'),
-            backgroundColor: Colors.red),
+            backgroundColor: Theme.of(context).colorScheme.error),
       );
     }
   }
@@ -221,6 +226,15 @@ class _PlayerScreenState extends State<PlayerScreen>
         });
       }
     });
+
+    _volumeSubscription =
+        _audioPlayerService.audioPlayer.volumeStream.listen((volume) {
+      if (mounted) {
+        setState(() {
+          _currentVolume = volume;
+        });
+      }
+    });
   }
 
   void _updatePlayingState() {
@@ -258,6 +272,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _authSubscription.cancel();
     _loopModeSubscription.cancel();
     _shuffleModeSubscription.cancel();
+    _volumeSubscription.cancel();
     _rotationController.dispose();
     _scaleController.dispose();
     super.dispose();
@@ -277,7 +292,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Hata: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -320,6 +335,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  Future<void> _setVolume(double volume) async {
+    await _audioPlayerService.audioPlayer.setVolume(volume);
+  }
+
   Widget _buildCoverArt() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -328,6 +347,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         final double maxSize = (availableHeight * 0.8).clamp(200.0, 280.0);
         final double actualSize =
             maxSize > availableWidth ? availableWidth * 0.8 : maxSize;
+
+        final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
         return Center(
           child: AnimatedBuilder(
@@ -353,9 +374,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                               offset: const Offset(0, 10),
                             ),
                             BoxShadow(
-                              color: Theme.of(context)
-                                  .primaryColor
-                                  .withOpacity(0.2),
+                              color: colorScheme.primary.withOpacity(0.2),
                               spreadRadius: 10,
                               blurRadius: 30,
                               offset: const Offset(0, 5),
@@ -373,12 +392,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 placeholder: (context, url) => Container(
                                   width: actualSize,
                                   height: actualSize,
-                                  color: Colors.grey[300],
+                                  color: colorScheme.surface.withOpacity(0.5),
                                   child: Center(
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                          Theme.of(context).primaryColor),
+                                          colorScheme.primary),
                                     ),
                                   ),
                                 ),
@@ -386,10 +405,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   return Container(
                                     width: actualSize,
                                     height: actualSize,
-                                    color: Colors.grey[400],
+                                    color: colorScheme.surface.withOpacity(0.7),
                                     child: Icon(
                                       Icons.music_note,
-                                      color: Colors.white,
+                                      color: colorScheme.onSurface,
                                       size: actualSize * 0.3,
                                     ),
                                   );
@@ -436,28 +455,23 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: colorScheme.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: Icon(
             Icons.keyboard_arrow_down,
-            color: Colors.grey[800],
+            color: colorScheme.onBackground,
             size: 32,
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.more_vert,
-              color: Colors.grey[800],
-            ),
-            onPressed: () {},
-          ),
-        ],
+        actions: [],
       ),
       body: SafeArea(
         child: Column(
@@ -480,7 +494,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   return Container(
                     padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 8.0),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: colorScheme.surface,
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(30),
                       ),
@@ -500,9 +514,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                             children: [
                               Text(
                                 _activeTrack.title,
-                                style: TextStyle(
+                                style: textTheme.titleLarge?.copyWith(
                                   fontSize: height * 0.09,
                                   fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
                                 ),
                                 textAlign: TextAlign.center,
                                 maxLines: 2,
@@ -511,9 +526,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                               SizedBox(height: height * 0.015),
                               Text(
                                 _activeTrack.artist,
-                                style: TextStyle(
+                                style: textTheme.titleSmall?.copyWith(
                                   fontSize: height * 0.07,
-                                  color: Colors.grey[600],
+                                  color: colorScheme.onSurface.withOpacity(0.7),
                                   fontWeight: FontWeight.w500,
                                 ),
                                 textAlign: TextAlign.center,
@@ -539,8 +554,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                                       .clamp(0.0,
                                           _totalDuration.inSeconds.toDouble()),
                                   max: _totalDuration.inSeconds.toDouble(),
-                                  activeColor: Theme.of(context).primaryColor,
-                                  inactiveColor: Colors.grey[300],
+                                  activeColor: colorScheme.primary,
+                                  inactiveColor:
+                                      colorScheme.primary.withOpacity(0.3),
                                   onChangeStart: (value) => _isDragging = true,
                                   onChanged: (value) {
                                     setState(() {
@@ -563,15 +579,17 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   children: [
                                     Text(
                                       _formatDuration(_currentPosition),
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.onSurface
+                                            .withOpacity(0.7),
                                         fontSize: height * 0.05,
                                       ),
                                     ),
                                     Text(
                                       _formatDuration(_totalDuration),
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.onSurface
+                                            .withOpacity(0.7),
                                         fontSize: height * 0.05,
                                       ),
                                     ),
@@ -585,9 +603,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.skip_previous),
+                                icon: Icon(Icons.skip_previous),
                                 iconSize: buttonSize * 0.5,
-                                color: Colors.grey[700],
+                                color: colorScheme.onSurface,
                                 onPressed: () async {
                                   await _audioPlayerService.playPreviousTrack();
                                 },
@@ -601,11 +619,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   height: buttonSize,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: Theme.of(context).primaryColor,
+                                    color: colorScheme.primary,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Theme.of(context)
-                                            .primaryColor
+                                        color: colorScheme.primary
                                             .withOpacity(0.3),
                                         blurRadius: 15,
                                         offset: const Offset(0, 4),
@@ -621,7 +638,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                             ? Icons.pause
                                             : Icons.play_arrow,
                                         key: ValueKey(_isPlaying),
-                                        color: Colors.white,
+                                        color: colorScheme.onPrimary,
                                         size: buttonSize * 0.5,
                                       ),
                                     ),
@@ -630,9 +647,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.skip_next),
+                                icon: Icon(Icons.skip_next),
                                 iconSize: buttonSize * 0.5,
-                                color: Colors.grey[700],
+                                color: colorScheme.onSurface,
                                 onPressed: () async {
                                   await _audioPlayerService.playNextTrack();
                                 },
@@ -646,8 +663,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 icon: Icon(Icons.shuffle),
                                 iconSize: height * 0.07,
                                 color: _isShuffleEnabled
-                                    ? Theme.of(context).primaryColor
-                                    : Colors.grey,
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurface.withOpacity(0.6),
                                 onPressed: _toggleShuffle,
                               ),
                               IconButton(
@@ -660,8 +677,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 ),
                                 iconSize: height * 0.07,
                                 color: _loopMode != LoopMode.off
-                                    ? Theme.of(context).primaryColor
-                                    : Colors.grey,
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurface.withOpacity(0.6),
                                 onPressed: _toggleRepeat,
                               ),
                               IconButton(
@@ -672,19 +689,40 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 ),
                                 iconSize: height * 0.07,
                                 color: _isLiked
-                                    ? Theme.of(context).primaryColor
-                                    : Colors.grey,
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurface.withOpacity(0.6),
                                 onPressed: _toggleLikeStatus,
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.playlist_add),
-                                iconSize: height * 0.07,
-                                color: Colors.grey,
-                                onPressed: () {},
                               ),
                             ],
                           ),
                           SizedBox(height: height * 0.02),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Row(
+                              children: [
+                                Icon(Icons.volume_down,
+                                    color:
+                                        colorScheme.onSurface.withOpacity(0.7)),
+                                Expanded(
+                                  child: Slider(
+                                    value: _currentVolume,
+                                    min: 0.0,
+                                    max: 1.0,
+                                    activeColor: colorScheme.primary,
+                                    inactiveColor:
+                                        colorScheme.primary.withOpacity(0.3),
+                                    onChanged: (value) {
+                                      _setVolume(value);
+                                    },
+                                  ),
+                                ),
+                                Icon(Icons.volume_up,
+                                    color:
+                                        colorScheme.onSurface.withOpacity(0.7)),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),

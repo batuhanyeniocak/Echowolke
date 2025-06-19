@@ -10,6 +10,7 @@ import '../services/audio_player_service.dart';
 import '../models/playlist.dart';
 import 'playlist_detail_screen.dart';
 import 'edit_profile_screen.dart';
+import 'public_playlist_detail_screen.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   final String userId;
@@ -39,8 +40,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: colorScheme.background,
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
@@ -48,10 +52,22 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+                child: CircularProgressIndicator(
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(colorScheme.primary)));
+          }
+          if (snapshot.hasError) {
+            return Center(
+                child: Text("Hata: ${snapshot.error}",
+                    style: textTheme.bodyLarge
+                        ?.copyWith(color: colorScheme.error)));
           }
           if (!snapshot.hasData || snapshot.data?.data() == null) {
-            return const Center(child: Text("Kullanıcı bulunamadı."));
+            return Center(
+                child: Text("Kullanıcı bulunamadı.",
+                    style: textTheme.bodyLarge
+                        ?.copyWith(color: colorScheme.onBackground)));
           }
 
           final userData = snapshot.data!.data() as Map<String, dynamic>;
@@ -61,18 +77,21 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             child: NestedScrollView(
               headerSliverBuilder: (context, innerBoxIsScrolled) {
                 return [
-                  _buildSliverAppBar(),
-                  SliverToBoxAdapter(child: _buildProfileInfo(userData)),
+                  _buildSliverAppBar(colorScheme),
+                  SliverToBoxAdapter(
+                      child:
+                          _buildProfileInfo(userData, colorScheme, textTheme)),
                   SliverPersistentHeader(
-                    delegate: _SliverTabBarDelegate(_buildTabBar()),
+                    delegate: _SliverTabBarDelegate(
+                        _buildTabBar(colorScheme, textTheme)),
                     pinned: true,
                   ),
                 ];
               },
               body: TabBarView(
                 children: [
-                  _buildLikedTrackList(),
-                  _buildPlaylistList(),
+                  _buildLikedTrackList(colorScheme, textTheme),
+                  _buildPlaylistList(colorScheme, textTheme),
                 ],
               ),
             ),
@@ -82,7 +101,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     );
   }
 
-  SliverAppBar _buildSliverAppBar() {
+  SliverAppBar _buildSliverAppBar(ColorScheme colorScheme) {
     return SliverAppBar(
       expandedHeight: 70.0,
       floating: false,
@@ -90,13 +109,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       elevation: 0,
       backgroundColor: Colors.transparent,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
+        icon: Icon(Icons.arrow_back, color: colorScheme.onBackground),
         onPressed: () => Navigator.of(context).pop(),
       ),
     );
   }
 
-  Widget _buildProfileInfo(Map<String, dynamic> userData) {
+  Widget _buildProfileInfo(Map<String, dynamic> userData,
+      ColorScheme colorScheme, TextTheme textTheme) {
     final username = userData['username'] ?? 'Kullanıcı';
     final profileImageUrl = userData['profileImageUrl'] ?? '';
 
@@ -106,15 +126,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           offset: const Offset(0, -50),
           child: CircleAvatar(
             radius: 50,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            backgroundColor: colorScheme.background,
             child: CircleAvatar(
               radius: 46,
               backgroundImage: profileImageUrl.isNotEmpty
                   ? CachedNetworkImageProvider(profileImageUrl)
                   : null,
-              backgroundColor: Colors.grey[200],
+              backgroundColor: colorScheme.surface.withOpacity(0.5),
               child: profileImageUrl.isEmpty
-                  ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                  ? Icon(Icons.person,
+                      size: 50, color: colorScheme.onSurface.withOpacity(0.7))
                   : null,
             ),
           ),
@@ -126,8 +147,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             child: Column(
               children: [
                 Text(username,
-                    style: const TextStyle(
-                        fontSize: 24, fontWeight: FontWeight.bold)),
+                    style: textTheme.headlineSmall?.copyWith(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onBackground)),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -139,7 +162,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                           final count = snapshot.hasData
                               ? snapshot.data!.length.toString()
                               : '0';
-                          return _buildStatColumn('Beğenilenler', count);
+                          return _buildStatColumn(
+                              'Beğenilenler', count, colorScheme, textTheme);
                         },
                       ),
                     ),
@@ -151,7 +175,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                           final count = snapshot.hasData
                               ? snapshot.data!.length.toString()
                               : '0';
-                          return _buildStatColumn('Listeler', count);
+                          return _buildStatColumn(
+                              'Listeler', count, colorScheme, textTheme);
                         },
                       ),
                     ),
@@ -160,24 +185,21 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 const SizedBox(height: 16),
                 if (_isOwnProfile)
                   ElevatedButton.icon(
-                    icon: const Icon(Icons.edit, size: 18),
-                    label: const Text('Profili Düzenle'),
+                    icon: Icon(Icons.edit,
+                        size: 18, color: colorScheme.onPrimary),
+                    label: Text('Profili Düzenle', style: textTheme.labelLarge),
                     onPressed: () {
                       Navigator.of(context).push(MaterialPageRoute(
                         builder: (context) => const EditProfileScreen(),
                       ));
                     },
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20)),
                     ),
-                  )
-                else
-                  ElevatedButton.icon(
-                    onPressed: () {/* Takip etme mantığı buraya eklenebilir */},
-                    icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
-                    label: const Text("Takip Et"),
                   )
               ],
             ),
@@ -187,35 +209,59 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     );
   }
 
-  Widget _buildStatColumn(String label, String value) {
+  Widget _buildStatColumn(String label, String value, ColorScheme colorScheme,
+      TextTheme textTheme) {
     return Column(
       children: [
         Text(value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            style: textTheme.titleMedium?.copyWith(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onBackground)),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+        Text(label,
+            style: textTheme.bodyMedium?.copyWith(
+                fontSize: 14,
+                color: colorScheme.onBackground.withOpacity(0.7))),
       ],
     );
   }
 
-  TabBar _buildTabBar() {
+  TabBar _buildTabBar(ColorScheme colorScheme, TextTheme textTheme) {
     return TabBar(
-      labelColor: Theme.of(context).primaryColor,
-      unselectedLabelColor: Colors.grey[600],
-      indicatorColor: Theme.of(context).primaryColor,
+      labelColor: colorScheme.primary,
+      unselectedLabelColor: colorScheme.onSurface.withOpacity(0.6),
+      indicatorColor: colorScheme.primary,
+      labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+      unselectedLabelStyle: textTheme.labelLarge,
       tabs: const [Tab(text: 'Beğenilenler'), Tab(text: 'Listeler')],
     );
   }
 
-  Widget _buildLikedTrackList() {
+  Widget _buildLikedTrackList(ColorScheme colorScheme, TextTheme textTheme) {
     return StreamBuilder<List<Track>>(
       stream: _firebaseService.getLikedSongs(widget.userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+              child: CircularProgressIndicator(
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(colorScheme.primary)));
+        }
+        if (snapshot.hasError) {
+          return Center(
+              child: Text('Hata: ${snapshot.error}',
+                  style:
+                      textTheme.bodyLarge?.copyWith(color: colorScheme.error)));
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('Beğenilen şarkı yok.'));
+          return Center(
+            child: Text(
+              'Beğenilen şarkı yok.',
+              style: textTheme.bodyLarge
+                  ?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
+            ),
+          );
         }
         final likedTracks = snapshot.data!;
         return ListView.builder(
@@ -237,17 +283,35 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     );
   }
 
-  Widget _buildPlaylistList() {
+  Widget _buildPlaylistList(ColorScheme colorScheme, TextTheme textTheme) {
     return StreamBuilder<List<Playlist>>(
       stream: _firebaseService.getUserPlaylists(widget.userId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+              child: CircularProgressIndicator(
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(colorScheme.primary)));
         }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('Çalma listesi yok.'));
+        if (snapshot.hasError) {
+          return Center(
+              child: Text('Hata: ${snapshot.error}',
+                  style:
+                      textTheme.bodyLarge?.copyWith(color: colorScheme.error)));
         }
-        final playlists = snapshot.data!;
+
+        final playlists = snapshot.data ?? [];
+
+        if (playlists.isEmpty) {
+          return Center(
+            child: Text(
+              'Çalma listesi yok.',
+              style: textTheme.bodyLarge
+                  ?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
+            ),
+          );
+        }
+
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8.0),
           itemCount: playlists.length,
@@ -256,11 +320,17 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               elevation: 2,
+              color: colorScheme.surface,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
               child: ListTile(
-                title: Text(playlist.name),
-                subtitle: Text('${playlist.trackIds.length} şarkı'),
+                title: Text(playlist.name,
+                    style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface)),
+                subtitle: Text('${playlist.trackIds.length} şarkı',
+                    style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.7))),
                 leading: playlist.imageUrl.isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(4.0),
@@ -268,17 +338,37 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                             imageUrl: playlist.imageUrl,
                             width: 50,
                             height: 50,
-                            fit: BoxFit.cover),
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                                  width: 50,
+                                  height: 50,
+                                  color: colorScheme.surface.withOpacity(0.5),
+                                  child: Icon(Icons.music_note,
+                                      size: 25,
+                                      color: colorScheme.onSurface
+                                          .withOpacity(0.7)),
+                                ),
+                            errorWidget: (context, url, error) => Container(
+                                  width: 50,
+                                  height: 50,
+                                  color: colorScheme.surface.withOpacity(0.7),
+                                  child: Icon(Icons.broken_image,
+                                      size: 25,
+                                      color: colorScheme.onSurface
+                                          .withOpacity(0.7)),
+                                )),
                       )
                     : Container(
                         width: 50,
                         height: 50,
-                        color: Colors.grey,
-                        child:
-                            const Icon(Icons.music_note, color: Colors.white)),
+                        color: colorScheme.surface.withOpacity(0.7),
+                        child: Icon(Icons.music_note,
+                            size: 25,
+                            color: colorScheme.onSurface.withOpacity(0.7)),
+                      ),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (context) =>
-                        PlaylistDetailScreen(playlist: playlist))),
+                        PublicPlaylistDetailScreen(playlist: playlist))),
               ),
             );
           },
@@ -298,8 +388,9 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
+      color: colorScheme.background,
       child: tabBar,
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import '../models/playlist.dart';
 import 'create_playlist_screen.dart';
@@ -15,28 +16,36 @@ class PlaylistsScreen extends StatelessWidget {
     final firebaseService =
         Provider.of<FirebaseService>(context, listen: false);
     final currentUser = FirebaseAuth.instance.currentUser;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
 
     if (currentUser == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Çalma Listelerim'),
-          backgroundColor: Colors.orange,
+          title: Text('Çalma Listelerim',
+              style:
+                  textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
+          backgroundColor: colorScheme.surface,
           elevation: 0,
         ),
-        body: const Center(
-          child: Text('Çalma listelerinizi görmek için giriş yapmalısınız.'),
+        body: Center(
+          child: Text('Çalma listelerinizi görmek için giriş yapmalısınız.',
+              style: textTheme.bodyLarge
+                  ?.copyWith(color: colorScheme.onBackground)),
         ),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Çalma Listelerim'),
-        backgroundColor: Colors.orange,
+        title: Text('Çalma Listelerim',
+            style:
+                textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
+        backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: Icon(Icons.add, color: colorScheme.onSurface),
             onPressed: () {
               Navigator.of(context).push(
                 PageRouteBuilder(
@@ -56,15 +65,24 @@ class PlaylistsScreen extends StatelessWidget {
         stream: firebaseService.getUserPlaylists(currentUser.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+                child: CircularProgressIndicator(
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(colorScheme.primary)));
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Hata: ${snapshot.error}'));
+            return Center(
+                child: Text('Hata: ${snapshot.error}',
+                    style: textTheme.bodyLarge
+                        ?.copyWith(color: colorScheme.error)));
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
+            return Center(
                 child: Text(
-                    'Henüz bir çalma listeniz yok. Yeni bir tane oluşturun!'));
+              'Henüz bir çalma listeniz yok. Yeni bir tane oluşturun!',
+              style: textTheme.bodyLarge
+                  ?.copyWith(color: colorScheme.onBackground),
+            ));
           }
 
           final playlists = snapshot.data!;
@@ -76,6 +94,7 @@ class PlaylistsScreen extends StatelessWidget {
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 elevation: 3,
+                color: colorScheme.surface,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
@@ -91,35 +110,44 @@ class PlaylistsScreen extends StatelessWidget {
                             placeholder: (context, url) => Container(
                               width: 60,
                               height: 60,
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.music_note,
-                                  size: 30, color: Colors.white70),
+                              color: colorScheme.surface.withOpacity(0.5),
+                              child: Icon(Icons.music_note,
+                                  size: 30,
+                                  color:
+                                      colorScheme.onSurface.withOpacity(0.7)),
                             ),
                             errorWidget: (context, url, error) => Container(
                               width: 60,
                               height: 60,
-                              color: Colors.grey[400],
-                              child: const Icon(Icons.broken_image,
-                                  size: 30, color: Colors.white70),
+                              color: colorScheme.surface.withOpacity(0.7),
+                              child: Icon(Icons.broken_image,
+                                  size: 30,
+                                  color:
+                                      colorScheme.onSurface.withOpacity(0.7)),
                             ),
                           )
                         : Container(
                             width: 60,
                             height: 60,
-                            color: Colors.grey[400],
-                            child: const Icon(Icons.music_note,
-                                size: 30, color: Colors.white70),
+                            color: colorScheme.surface.withOpacity(0.7),
+                            child: Icon(Icons.music_note,
+                                size: 30,
+                                color: colorScheme.onSurface.withOpacity(0.7)),
                           ),
                   ),
                   title: Text(
                     playlist.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface),
                   ),
                   subtitle: Text(
                     '${playlist.trackIds.length} şarkı',
-                    style: TextStyle(color: Colors.grey[600]),
+                    style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.7)),
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: Icon(Icons.chevron_right,
+                      color: colorScheme.onSurface.withOpacity(0.6)),
                   onTap: () {
                     Navigator.of(context).push(
                       PageRouteBuilder(

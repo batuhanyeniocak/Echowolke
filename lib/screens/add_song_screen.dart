@@ -6,6 +6,8 @@ import 'package:flutter_app/services/firebase_service.dart';
 import '../models/track.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 class AddSongScreen extends StatefulWidget {
   const AddSongScreen({Key? key}) : super(key: key);
@@ -32,8 +34,42 @@ class _AddSongScreenState extends State<AddSongScreen> {
   bool isUploading = false;
   double uploadProgress = 0.0;
 
-  Future<void> pickMp3File() async {
+  static Future<int> _calculateDurationInBackground(
+      Map<String, dynamic> data) async {
     final AudioPlayer player = AudioPlayer();
+    try {
+      AudioSource audioSource;
+      final bool isWeb = data['isWeb'];
+
+      if (isWeb) {
+        final Uint8List bytes = data['bytes'];
+        audioSource = AudioSource.uri(
+          Uri.dataFromBytes(bytes, mimeType: 'audio/mpeg'),
+          tag: MediaItem(id: 'temp', title: 'temp'),
+        );
+      } else {
+        final String path = data['path'];
+        audioSource = AudioSource.file(
+          path,
+          tag: MediaItem(id: 'temp', title: 'temp'),
+        );
+      }
+
+      await player.setAudioSource(audioSource);
+      await player.load();
+
+      await player.processingStateStream
+          .firstWhere((state) => state == ProcessingState.ready);
+
+      return player.duration?.inSeconds ?? 0;
+    } catch (e) {
+      return 0;
+    } finally {
+      await player.dispose();
+    }
+  }
+
+  Future<void> pickMp3File() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.audio,
@@ -47,67 +83,24 @@ class _AddSongScreenState extends State<AddSongScreen> {
         titleController.text = fileName.replaceAll('.mp3', '');
         mp3FileName = fileName;
 
-        final tempMediaItem = MediaItem(
-          id: fileName,
-          title: fileName.replaceAll('.mp3', ''),
-          artist: 'Bilinmiyor',
-        );
-
-        AudioSource audioSource;
-
         if (kIsWeb) {
           selectedMp3Bytes = result.files.single.bytes;
-          setState(() {});
-
-          if (selectedMp3Bytes != null && selectedMp3Bytes!.isNotEmpty) {
-            audioSource = AudioSource.uri(
-              Uri.dataFromBytes(selectedMp3Bytes!, mimeType: 'audio/mpeg'),
-              tag: tempMediaItem,
-            );
-          } else {
-            durationController.text = '0';
-            return;
-          }
         } else {
           if (result.files.single.path != null) {
             selectedMp3File = File(result.files.single.path!);
-            setState(() {});
-
-            if (await selectedMp3File!.exists()) {
-              audioSource = AudioSource.file(
-                selectedMp3File!.path,
-                tag: tempMediaItem,
-              );
-            } else {
-              durationController.text = '0';
-              return;
-            }
-          } else {
-            durationController.text = '0';
-            return;
           }
         }
-
-        await player.setAudioSource(audioSource);
-        await player.load();
-
-        await player.processingStateStream
-            .firstWhere((state) => state == ProcessingState.ready);
-
-        if (player.duration != null) {
-          durationController.text = player.duration!.inSeconds.toString();
-        } else {
-          durationController.text = '0';
-        }
+        durationController.text = '';
+        if (mounted) setState(() {});
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Dosya seçme veya süre alma hatası: $e")),
-      );
-      durationController.text = '0';
-    } finally {
-      await player.dispose();
-      if (mounted) setState(() {});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text("Dosya seçme hatası: $e"),
+              backgroundColor: Theme.of(context).colorScheme.error),
+        );
+      }
     }
   }
 
@@ -136,7 +129,9 @@ class _AddSongScreenState extends State<AddSongScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Resim seçme hatası: $e")),
+        SnackBar(
+            content: Text("Resim seçme hatası: $e"),
+            backgroundColor: Theme.of(context).colorScheme.error),
       );
     }
   }
@@ -158,13 +153,12 @@ class _AddSongScreenState extends State<AddSongScreen> {
   }
 
   Future<void> uploadTrack() async {
-    if (!_formKey.currentState!.validate() ||
-        !hasSelectedMp3 ||
-        durationController.text == '0') {
+    if (!_formKey.currentState!.validate() || !hasSelectedMp3) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
             content: Text(
-                "Lütfen tüm alanları doldurun ve MP3 dosyası seçin. Şarkı süresi alınamadı.")),
+                "Lütfen tüm zorunlu alanları doldurun ve MP3 dosyası seçin."),
+            backgroundColor: Theme.of(context).colorScheme.error),
       );
       return;
     }
@@ -175,6 +169,36 @@ class _AddSongScreenState extends State<AddSongScreen> {
     });
 
     try {
+      int durationInSeconds = 0;
+      if (kIsWeb) {
+        if (selectedMp3Bytes != null && selectedMp3Bytes!.isNotEmpty) {
+          durationInSeconds = await compute(
+            _calculateDurationInBackground,
+            {'isWeb': true, 'bytes': selectedMp3Bytes!},
+          );
+        }
+      } else {
+        if (selectedMp3File != null && await selectedMp3File!.exists()) {
+          durationInSeconds = await compute(
+            _calculateDurationInBackground,
+            {'isWeb': false, 'path': selectedMp3File!.path},
+          );
+        }
+      }
+
+      if (durationInSeconds == 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(
+                    "Şarkı süresi alınamadı. Lütfen geçerli bir MP3 dosyası seçin."),
+                backgroundColor: Theme.of(context).colorScheme.error),
+          );
+        }
+        return;
+      }
+      durationController.text = durationInSeconds.toString();
+
       String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       String audioFileName = '${timestamp}_${titleController.text}.mp3';
       String coverImageName = '${timestamp}_${titleController.text}_cover.jpg';
@@ -208,23 +232,41 @@ class _AddSongScreenState extends State<AddSongScreen> {
 
       await _firebaseService.saveTrackToFirestore(newTrack);
 
-      setState(() {
-        isUploading = false;
-      });
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (mounted) {
+        setState(() {
+          uploadProgress = 1.0;
+          isUploading = false;
+        });
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Şarkı başarıyla yüklendi!")),
+        SnackBar(
+            content: Text("Şarkı başarıyla yüklendi!"),
+            backgroundColor: Theme.of(context).colorScheme.onBackground),
       );
 
       Navigator.pop(context, true);
     } catch (e) {
-      setState(() {
-        isUploading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isUploading = false;
+          uploadProgress = 0.0;
+        });
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Yükleme hatası: $e")),
+        SnackBar(
+            content: Text("Yükleme hatası: $e"),
+            backgroundColor: Theme.of(context).colorScheme.error),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isUploading = false;
+        });
+      }
     }
   }
 
@@ -238,10 +280,15 @@ class _AddSongScreenState extends State<AddSongScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Şarkı Yükle"),
-        backgroundColor: Colors.orange,
+        title: Text("Şarkı Yükle",
+            style:
+                textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
+        backgroundColor: colorScheme.surface,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -251,31 +298,34 @@ class _AddSongScreenState extends State<AddSongScreen> {
             children: [
               Card(
                 elevation: 4,
+                color: colorScheme.surface,
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      const Icon(Icons.audiotrack,
-                          size: 48, color: Colors.orange),
+                      Icon(Icons.audiotrack,
+                          size: 48, color: colorScheme.primary),
                       const SizedBox(height: 8),
                       Text(
                         hasSelectedMp3
                             ? 'Seçilen dosya: ${selectedMp3DisplayName}'
                             : 'MP3 dosyası seçin',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: hasSelectedMp3 ? Colors.green : Colors.grey,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: hasSelectedMp3
+                              ? colorScheme.primary
+                              : colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                       const SizedBox(height: 12),
                       ElevatedButton.icon(
                         onPressed: isUploading ? null : pickMp3File,
-                        icon: const Icon(Icons.file_upload),
-                        label: const Text('MP3 Seç'),
+                        icon: Icon(Icons.file_upload,
+                            color: colorScheme.onPrimary),
+                        label: Text('MP3 Seç', style: textTheme.labelLarge),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: colorScheme.onPrimary,
                         ),
                       ),
                     ],
@@ -285,6 +335,7 @@ class _AddSongScreenState extends State<AddSongScreen> {
               const SizedBox(height: 16),
               Card(
                 elevation: 4,
+                color: colorScheme.surface,
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -303,27 +354,28 @@ class _AddSongScreenState extends State<AddSongScreen> {
                                   width: 100,
                                   fit: BoxFit.cover,
                                 )
-                          : const Icon(Icons.image,
-                              size: 48, color: Colors.orange),
+                          : Icon(Icons.image,
+                              size: 48, color: colorScheme.primary),
                       const SizedBox(height: 8),
                       Text(
                         hasSelectedCover
                             ? 'Kapak resmi seçildi'
                             : 'Kapak resmi seçin (opsiyonel)',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: hasSelectedCover ? Colors.green : Colors.grey,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: hasSelectedCover
+                              ? colorScheme.primary
+                              : colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                       const SizedBox(height: 12),
                       ElevatedButton.icon(
                         onPressed: isUploading ? null : pickCoverImage,
-                        icon: const Icon(Icons.image),
-                        label: const Text('Kapak Seç'),
+                        icon: Icon(Icons.image, color: colorScheme.onPrimary),
+                        label: Text('Kapak Seç', style: textTheme.labelLarge),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: colorScheme.onPrimary,
                         ),
                       ),
                     ],
@@ -333,10 +385,31 @@ class _AddSongScreenState extends State<AddSongScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: titleController,
-                decoration: const InputDecoration(
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: 'Şarkı Adı',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.music_note),
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.music_note,
+                      color: colorScheme.onSurface.withOpacity(0.8)),
+                  fillColor: colorScheme.surface,
+                  filled: true,
                 ),
                 validator: (value) =>
                     value!.isEmpty ? 'Şarkı adı gerekli' : null,
@@ -344,39 +417,77 @@ class _AddSongScreenState extends State<AddSongScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: artistController,
-                decoration: const InputDecoration(
+                style:
+                    textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                decoration: InputDecoration(
                   labelText: 'Sanatçı',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
+                  labelStyle: textTheme.bodyLarge
+                      ?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                        color: colorScheme.onSurface.withOpacity(0.5)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.person,
+                      color: colorScheme.onSurface.withOpacity(0.8)),
+                  fillColor: colorScheme.surface,
+                  filled: true,
                 ),
                 validator: (value) =>
                     value!.isEmpty ? 'Sanatçı adı gerekli' : null,
               ),
               const SizedBox(height: 24),
               if (isUploading) ...[
-                const Text(
-                  'Yükleniyor...',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Yükleniyor...',
+                      textAlign: TextAlign.center,
+                      style: textTheme.titleMedium?.copyWith(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onBackground),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${(uploadProgress * 100).toInt()}%',
+                      style: textTheme.titleMedium?.copyWith(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
-                  backgroundColor: Colors.grey[300],
+                  value: uploadProgress,
+                  backgroundColor: colorScheme.primary.withOpacity(0.3),
                   valueColor:
-                      const AlwaysStoppedAnimation<Color>(Colors.orange),
+                      AlwaysStoppedAnimation<Color>(colorScheme.primary),
                 ),
                 const SizedBox(height: 16),
               ],
               ElevatedButton(
                 onPressed: isUploading ? null : uploadTrack,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(fontSize: 18),
+                  textStyle: textTheme.labelLarge?.copyWith(fontSize: 18),
                 ),
                 child: isUploading
-                    ? const Row(
+                    ? Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           SizedBox(
@@ -384,15 +495,15 @@ class _AddSongScreenState extends State<AddSongScreen> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  colorScheme.onPrimary),
                             ),
                           ),
-                          SizedBox(width: 12),
-                          Text('Yükleniyor...'),
+                          const SizedBox(width: 12),
+                          Text('Yükleniyor...', style: textTheme.labelLarge),
                         ],
                       )
-                    : const Text('Şarkıyı Yükle'),
+                    : Text('Şarkıyı Yükle', style: textTheme.labelLarge),
               ),
             ],
           ),

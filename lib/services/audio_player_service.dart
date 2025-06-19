@@ -4,6 +4,7 @@ import 'package:just_audio_background/just_audio_background.dart';
 import '../models/track.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter_app/services/firebase_service.dart';
+import 'dart:async';
 
 class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
@@ -28,6 +29,9 @@ class AudioPlayerService {
   Stream<bool> get isPlayingStream => _isPlayingSubject.stream;
   Track? get currentTrack => _currentTrack;
   bool get isPlaying => audioPlayer.playing;
+
+  static const int _maxRetries = 3;
+  static const Duration _retryDelay = Duration(seconds: 1);
 
   void setFirebaseService(FirebaseService service) {
     _firebaseService = service;
@@ -60,19 +64,36 @@ class AudioPlayerService {
     } else {
       _currentTrack = track;
       _currentTrackSubject.add(track);
-      await audioPlayer.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(track.audioUrl),
-          tag: MediaItem(
-            id: track.id,
-            album: track.artist,
-            title: track.title,
-            artUri: Uri.parse(track.coverUrl),
-          ),
-        ),
-      );
-      await audioPlayer.play();
-      _firebaseService?.incrementTrackPlayCount(track.id);
+
+      for (int i = 0; i < _maxRetries; i++) {
+        try {
+          await audioPlayer.setAudioSource(
+            AudioSource.uri(
+              Uri.parse(track.audioUrl),
+              tag: MediaItem(
+                id: track.id,
+                album: track.artist,
+                title: track.title,
+                artUri: Uri.parse(track.coverUrl),
+              ),
+            ),
+          );
+          await audioPlayer.play();
+          _firebaseService?.incrementTrackPlayCount(track.id);
+          return;
+        } catch (e) {
+          print('Şarkıyı çalma hatası (deneme ${i + 1}/$_maxRetries): $e');
+          if (i < _maxRetries - 1) {
+            await Future.delayed(_retryDelay);
+          } else {
+            print('Şarkı çalınamadı: ${track.title}');
+            await audioPlayer.stop();
+            _currentTrack = null;
+            _currentTrackSubject.add(null);
+            _isPlayingSubject.add(false);
+          }
+        }
+      }
     }
   }
 
@@ -88,7 +109,7 @@ class AudioPlayerService {
       return;
     }
 
-    int nextIndex = currentTrackIndex + 1;
+    int nextIndex;
     if (audioPlayer.shuffleModeEnabled) {
       await audioPlayer.setShuffleModeEnabled(true);
       await audioPlayer.shuffle();

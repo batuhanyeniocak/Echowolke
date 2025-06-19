@@ -15,7 +15,7 @@ class PublicPlaylistDetailScreen extends StatefulWidget {
       : super(key: key);
 
   @override
-  _PublicPlaylistDetailScreenState createState() =>
+  State<PublicPlaylistDetailScreen> createState() =>
       _PublicPlaylistDetailScreenState();
 }
 
@@ -58,18 +58,31 @@ class _PublicPlaylistDetailScreenState
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
+      backgroundColor: colorScheme.background,
       body: FutureBuilder<Map<String, dynamic>>(
         future: _playlistDataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+                child: CircularProgressIndicator(
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(colorScheme.primary)));
           }
           if (snapshot.hasError) {
-            return Center(child: Text("Hata: ${snapshot.error}"));
+            return Center(
+                child: Text("Hata: ${snapshot.error}",
+                    style: textTheme.bodyLarge
+                        ?.copyWith(color: colorScheme.error)));
           }
           if (!snapshot.hasData) {
-            return const Center(child: Text("Veri bulunamadı."));
+            return Center(
+                child: Text("Veri bulunamadı.",
+                    style: textTheme.bodyLarge
+                        ?.copyWith(color: colorScheme.onBackground)));
           }
 
           final List<Track> tracks = snapshot.data!['tracks'];
@@ -77,8 +90,8 @@ class _PublicPlaylistDetailScreenState
 
           return CustomScrollView(
             slivers: [
-              _buildSliverAppBar(creatorData),
-              _buildTrackListSliver(tracks),
+              _buildSliverAppBar(creatorData, colorScheme, textTheme),
+              _buildTrackListSliver(tracks, colorScheme, textTheme),
             ],
           );
         },
@@ -86,21 +99,19 @@ class _PublicPlaylistDetailScreenState
     );
   }
 
-  SliverAppBar _buildSliverAppBar(Map<String, dynamic>? creatorData) {
+  SliverAppBar _buildSliverAppBar(Map<String, dynamic>? creatorData,
+      ColorScheme colorScheme, TextTheme textTheme) {
     final creatorName = creatorData?['username'] ?? 'Bilinmeyen Kullanıcı';
+    final creatorProfileImageUrl = creatorData?['profileImageUrl'];
 
     return SliverAppBar(
-      expandedHeight: 220.0,
+      expandedHeight: 280.0,
       pinned: true,
       floating: false,
       elevation: 2,
+      backgroundColor: colorScheme.surface,
       flexibleSpace: FlexibleSpaceBar(
         titlePadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 12),
-        title: Text(widget.playlist.name,
-            style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                shadows: [Shadow(blurRadius: 2, color: Colors.black87)])),
         centerTitle: true,
         background: Stack(
           fit: StackFit.expand,
@@ -109,15 +120,33 @@ class _PublicPlaylistDetailScreenState
                 ? CachedNetworkImage(
                     imageUrl: widget.playlist.imageUrl,
                     fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      color: colorScheme.surface.withOpacity(0.5),
+                      child: Center(
+                          child: Icon(Icons.music_note,
+                              size: 80,
+                              color: colorScheme.onSurface.withOpacity(0.7))),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: colorScheme.surface.withOpacity(0.7),
+                      child: Center(
+                          child: Icon(Icons.broken_image,
+                              size: 80,
+                              color: colorScheme.onSurface.withOpacity(0.7))),
+                    ),
                   )
-                : Container(color: Colors.grey),
-            const DecoratedBox(
+                : Container(color: colorScheme.surface.withOpacity(0.7)),
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.black54, Colors.transparent, Colors.black87],
-                  stops: [0.0, 0.5, 1.0],
+                  colors: [
+                    colorScheme.background.withOpacity(0.6),
+                    Colors.transparent,
+                    colorScheme.background.withOpacity(0.8),
+                  ],
+                  stops: const [0.0, 0.5, 1.0],
                 ),
               ),
             ),
@@ -125,39 +154,85 @@ class _PublicPlaylistDetailScreenState
               bottom: 16,
               left: 16,
               right: 16,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => PublicProfileScreen(
-                          userId: widget.playlist.creatorId),
-                    ),
-                  );
-                },
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Oluşturan: ',
-                      style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          shadows: const [
-                            Shadow(blurRadius: 1, color: Colors.black)
-                          ]),
-                    ),
-                    Text(
-                      creatorName,
-                      style: TextStyle(
-                        color: Colors.white,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    widget.playlist.name,
+                    style: textTheme.headlineSmall?.copyWith(
+                        fontSize: 28,
+                        color: colorScheme.onBackground,
                         fontWeight: FontWeight.bold,
-                        decoration: TextDecoration.underline,
-                        shadows: const [
-                          Shadow(blurRadius: 1, color: Colors.black)
-                        ],
-                      ),
+                        shadows: [
+                          Shadow(
+                              blurRadius: 2,
+                              color: colorScheme.onBackground.withOpacity(0.5))
+                        ]),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () {
+                      if (creatorData != null) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => PublicProfileScreen(
+                                userId: widget.playlist.creatorId),
+                          ),
+                        );
+                      }
+                    },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: colorScheme.surface.withOpacity(0.5),
+                          backgroundImage: (creatorProfileImageUrl != null &&
+                                  creatorProfileImageUrl.isNotEmpty)
+                              ? CachedNetworkImageProvider(
+                                      creatorProfileImageUrl)
+                                  as ImageProvider<Object>
+                              : null,
+                          child: (creatorProfileImageUrl == null ||
+                                  creatorProfileImageUrl.isEmpty)
+                              ? Icon(Icons.person,
+                                  size: 16,
+                                  color: colorScheme.onSurface.withOpacity(0.7))
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          creatorName,
+                          style: textTheme.bodyLarge?.copyWith(
+                              color: colorScheme.onBackground,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.underline,
+                              decorationColor: colorScheme.onBackground,
+                              shadows: [
+                                Shadow(
+                                    blurRadius: 1,
+                                    color: colorScheme.onBackground
+                                        .withOpacity(0.5))
+                              ]),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.playlist.description ?? 'Açıklama yok',
+                    style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onBackground.withOpacity(0.8)),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${widget.playlist.trackIds.length} şarkı',
+                    style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onBackground.withOpacity(0.7)),
+                  ),
+                ],
               ),
             ),
           ],
@@ -166,16 +241,19 @@ class _PublicPlaylistDetailScreenState
     );
   }
 
-  Widget _buildTrackListSliver(List<Track> tracks) {
+  Widget _buildTrackListSliver(
+      List<Track> tracks, ColorScheme colorScheme, TextTheme textTheme) {
     final audioPlayerService =
         Provider.of<AudioPlayerService>(context, listen: false);
 
     if (tracks.isEmpty) {
-      return const SliverToBoxAdapter(
+      return SliverToBoxAdapter(
         child: Padding(
-          padding: EdgeInsets.all(48.0),
+          padding: const EdgeInsets.all(48.0),
           child: Center(
-            child: Text('Bu çalma listesinde hiç şarkı yok.'),
+            child: Text('Bu çalma listesinde hiç şarkı yok.',
+                style: textTheme.bodyLarge
+                    ?.copyWith(color: colorScheme.onBackground)),
           ),
         ),
       );
