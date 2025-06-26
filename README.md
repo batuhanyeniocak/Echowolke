@@ -57,7 +57,7 @@ PROJEYİ YEREL MAKİNENİZDE kurmak ve çalıştırmak için aşağıdaki adıml
 
 2.  **DEPOYU KLONLAYIN**:
     ```bash
-    git clone [https://github.com/batuhanyeniocak/Echowolke.git](https://github.com/batuhanyeniocak/Echowolke.git)
+    git clone https://github.com/batuhanyeniocak/Echowolke
     cd Echowolke
     ```
 
