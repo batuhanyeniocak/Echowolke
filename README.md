@@ -35,7 +35,7 @@ Bu uygulama, İstinye Üniversitesi BİTİRME PROJESİ olarak geliştirilmiştir
 
 ## KULLANILAN TEKNOLOJİLER
 
-* **Flutter**: MOBİL, WEB ve MASAÜSTÜ için GÜZEL, YEREL olarak derlenmiş uygulamalar oluşturmak için kullanılan UI ARAÇ TAKIMI.
+* **Flutter**: MOBİL ve WEB için GÜZEL, YEREL olarak derlenmiş uygulamalar oluşturmak için kullanılan UI ARAÇ TAKIMI.
 * **Firebase**:
     * **Firestore**: GERÇEK ZAMANLI VERİ SENKRONİZASYONU ve depolama için NoSQL VERİTABANI.
     * **Firebase Authentication**: KULLANICI KİMLİK DOĞRULAMA HİZMETİ.
