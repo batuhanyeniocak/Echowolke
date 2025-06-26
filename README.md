@@ -28,7 +28,7 @@ Bu uygulama, İstinye Üniversitesi BİTİRME PROJESİ olarak geliştirilmiştir
 
 ## TAKIM ÜYELERİ
 
-* 211216055 - **Batuhan Yeniocak**
+* 211216066 - **Batuhan Yeniocak**
 
 
 
