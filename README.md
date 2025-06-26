@@ -90,4 +90,8 @@ BU PROJE AÇIK KAYNAKLIDIR ve MIT LİSANSI altında mevcuttur. DAHA FAZLA BİLG�
 
 ---
 
+## İLETİŞİM
+
+* **211216066@stu.istinye.edu.tr**
+
 **Geliştirici Notu**: BU BİR BİTİRME PROJESİDİR.
