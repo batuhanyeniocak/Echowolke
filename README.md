@@ -26,6 +26,13 @@ Bu uygulama, İstinye Üniversitesi BİTİRME PROJESİ olarak geliştirilmiştir
 * **Kullanıcı Profilleri**: KENDİ PROFİLİNİZİ görüntüleyin ve düzenleyin; diğer kullanıcıların HERKESE AÇIK PROFİLLERİNİ ve çalma listelerini keşfedin.
 * **Kişiselleştirme**: AÇIK ve KOYU TEMA seçenekleri arasında geçiş yapın.
 
+## TAKIM ÜYELERİ
+
+* 211216055 - **Batuhan Yeniocak**
+
+
+
+
 ## KULLANILAN TEKNOLOJİLER
 
 * **Flutter**: MOBİL, WEB ve MASAÜSTÜ için GÜZEL, YEREL olarak derlenmiş uygulamalar oluşturmak için kullanılan UI ARAÇ TAKIMI.
