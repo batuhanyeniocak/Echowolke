@@ -30,7 +30,9 @@ Bu uygulama, İstinye Üniversitesi BİTİRME PROJESİ olarak geliştirilmiştir
 
 * 211216066 - **Batuhan Yeniocak**
 
+## DEMO VİDEOSU
 
+[![Proje Tanıtım Videosu](https://img.youtube.com/vi/WBerQH3lGwY/hqdefault.jpg)](https://www.youtube.com/watch?v=WBerQH3lGwY)
 
 
 ## KULLANILAN TEKNOLOJİLER
